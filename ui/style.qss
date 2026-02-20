@@ -1,0 +1,228 @@
+/* ========================
+   Gym SaaS Modern Theme
+   ======================== */
+
+QMainWindow, QWidget#appRoot {
+    background: #f3f5f9;
+    color: #101828;
+}
+
+* {
+    outline: none;
+}
+
+QWidget {
+    font-family: "Cairo", "Tajawal", "Noto Naskh Arabic", "Segoe UI", sans-serif;
+    font-size: 11pt;
+}
+
+/* Sidebar */
+QFrame#sidebar {
+    background: #0f172a;
+    border-radius: 16px;
+}
+
+QLabel#brandTitle {
+    color: #f8fafc;
+    font-size: 13pt;
+    font-weight: 700;
+}
+
+QPushButton[class="navBtn"] {
+    background: transparent;
+    color: #cbd5e1;
+    text-align: right;
+    padding: 11px 14px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    font-weight: 600;
+}
+
+QPushButton[class="navBtn"]:hover {
+    background: #1e293b;
+    color: #ffffff;
+}
+
+QPushButton[class="navBtn"]:checked {
+    background: #2563eb;
+    color: #ffffff;
+}
+
+/* Top bar */
+QFrame#topBar {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+}
+
+QLabel#systemName {
+    color: #0f172a;
+    font-size: 12pt;
+    font-weight: 700;
+}
+
+QLineEdit#searchInput {
+    background: #f8fafc;
+    border: 1px solid #d9e0ea;
+    border-radius: 10px;
+    padding: 9px 12px;
+}
+
+QLineEdit#searchInput:focus {
+    border: 1px solid #2563eb;
+    background: #ffffff;
+}
+
+/* Buttons */
+QPushButton {
+    background: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 9px 14px;
+    font-weight: 700;
+}
+
+QPushButton:hover {
+    background: #1d4ed8;
+}
+
+QPushButton#btnGhost,
+QPushButton#tableIconBtn {
+    background: #eef2ff;
+    color: #1e40af;
+}
+
+QPushButton#btnGhost:hover,
+QPushButton#tableIconBtn:hover {
+    background: #e0e7ff;
+}
+
+QPushButton#btnDanger,
+QPushButton#tableDeleteBtn {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+QPushButton#btnDanger:hover,
+QPushButton#tableDeleteBtn:hover {
+    background: #fecaca;
+}
+
+QPushButton#tableIconBtn,
+QPushButton#tableDeleteBtn {
+    min-width: 28px;
+    max-width: 28px;
+    min-height: 28px;
+    max-height: 28px;
+    border-radius: 8px;
+    font-weight: 700;
+    padding: 0;
+}
+
+/* Cards */
+QFrame#card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+}
+
+QFrame#card[accent="primary"] {
+    border-left: 5px solid #2563eb;
+}
+
+QFrame#card[accent="warning"] {
+    border-left: 5px solid #f59e0b;
+}
+
+QFrame#card[accent="danger"] {
+    border-left: 5px solid #ef4444;
+}
+
+QLabel#cardTitle {
+    color: #64748b;
+    font-size: 10pt;
+    font-weight: 600;
+}
+
+QLabel#cardValue {
+    color: #0f172a;
+    font-size: 19pt;
+    font-weight: 800;
+}
+
+QFrame#sectionPanel {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+}
+
+QLabel#sectionTitle {
+    color: #0f172a;
+    font-size: 11pt;
+    font-weight: 700;
+}
+
+/* Inputs */
+QComboBox, QSpinBox, QDateEdit, QTextEdit, QLineEdit {
+    background: #ffffff;
+    border: 1px solid #d8e0ea;
+    border-radius: 10px;
+    padding: 8px 10px;
+}
+
+QComboBox:focus, QSpinBox:focus, QDateEdit:focus, QTextEdit:focus, QLineEdit:focus {
+    border: 1px solid #2563eb;
+}
+
+/* Tables */
+QTableWidget {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    gridline-color: #edf2f7;
+    alternate-background-color: #f8fafc;
+    selection-background-color: #dbeafe;
+    selection-color: #0f172a;
+}
+
+QHeaderView::section {
+    background: #f8fafc;
+    color: #334155;
+    border: none;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 10px;
+    font-weight: 700;
+}
+
+QTableWidget::item {
+    padding: 11px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+QScrollBar:vertical {
+    background: transparent;
+    width: 10px;
+}
+
+QScrollBar::handle:vertical {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #94a3b8;
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical,
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical {
+    background: none;
+    border: none;
+}
+
+/* Page labels */
+QLabel#mutedText {
+    color: #64748b;
+}
