@@ -149,9 +149,9 @@ class MainWindow(QMainWindow):
 
         cards = QHBoxLayout()
         cards.setSpacing(14)
-        cards.addWidget(self.card_active)
-        cards.addWidget(self.card_soon)
-        cards.addWidget(self.card_expired)
+        cards.addWidget(self.card_active, 1)
+        cards.addWidget(self.card_soon, 1)
+        cards.addWidget(self.card_expired, 1)
 
         panel = QFrame(objectName="sectionPanel")
         panel_layout = QVBoxLayout(panel)
@@ -162,6 +162,8 @@ class MainWindow(QMainWindow):
 
         layout.addLayout(cards)
         layout.addWidget(panel, 1)
+        layout.setStretch(0, 0)
+        layout.setStretch(1, 1)
         return page
 
     def _all_page(self) -> QWidget:

@@ -58,6 +58,19 @@ async function createMainWindow() {
     await mainWindow.loadFile(resolveRendererIndex());
   }
 
+  mainWindow.webContents.on('did-fail-load', (_event, code, desc, url) => {
+    const html = `
+      <html><body style="font-family:Segoe UI;padding:20px">
+      <h2>Renderer Load Failed</h2>
+      <p><b>Code:</b> ${code}</p>
+      <p><b>Description:</b> ${desc}</p>
+      <p><b>URL:</b> ${url}</p>
+      <p>تأكد أن Vite يعمل على http://127.0.0.1:5190</p>
+      </body></html>
+    `;
+    void mainWindow?.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  });
+
   mainWindow.once('ready-to-show', () => {
     splash.close();
     mainWindow?.show();

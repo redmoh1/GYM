@@ -86,6 +86,14 @@ function AppShell() {
 }
 
 export function App() {
+  if (!window.api) {
+    return (
+      <div style={{ padding: 24, fontFamily: 'Cairo, Segoe UI, sans-serif' }}>
+        خطأ: preload لم يحقن `window.api`. أعد تشغيل Electron.
+      </div>
+    );
+  }
+
   return (
     <CacheProvider value={cacheRtl}>
       <ThemeProvider theme={theme}>

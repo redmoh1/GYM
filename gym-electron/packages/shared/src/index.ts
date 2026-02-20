@@ -24,7 +24,6 @@ export interface CountersDTO {
 export interface DashboardDTO {
   counters: CountersDTO;
   nearestExpiring: MemberDTO[];
-  monthlyRenewals: Array<{ month: string; count: number }>;
 }
 
 export interface MembersQuery {
