@@ -27,10 +27,7 @@ export async function listMembers(query: MembersQuery = {}): Promise<MemberDTO[]
   const settings = await getSettings();
   const where = query.search
     ? {
-        OR: [
-          { fullName: { contains: query.search } },
-          { phone: { contains: query.search } },
-        ],
+        OR: [{ fullName: { contains: query.search } }, { phone: { contains: query.search } }],
       }
     : {};
 
@@ -109,29 +106,22 @@ export async function renewMember(payload: RenewalPayload): Promise<MemberDTO> {
   if (!existing) throw new Error('Member not found');
 
   const now = new Date();
-  const baseDate = existing.endDate >= now ? existing.endDate : now;
+  const { status } = statusFromDate(existing.endDate, settings.expiringSoonDays);
+  const isExpired = status === 'Expired';
+
+  const baseDate = isExpired ? now : existing.endDate;
   const newEndDate = addMonths(baseDate, payload.months);
+  const nextDurationMonths = isExpired ? payload.months : existing.durationMonths + payload.months;
 
   const row = await prisma.member.update({
     where: { id: payload.memberId },
     data: {
+      startDate: isExpired ? now : existing.startDate,
       endDate: newEndDate,
-      durationMonths: existing.durationMonths + payload.months,
+      durationMonths: nextDurationMonths,
     },
     include: { plan: true },
   });
-
-  if (payload.amount && payload.amount > 0) {
-    await prisma.payment.create({
-      data: {
-        memberId: row.id,
-        planId: row.planId,
-        amount: payload.amount,
-        months: payload.months,
-        note: payload.note ?? '',
-      },
-    });
-  }
 
   return toDTO(row, settings.expiringSoonDays);
 }

@@ -3,16 +3,14 @@ import EventBusyRounded from '@mui/icons-material/EventBusyRounded';
 import GroupsRounded from '@mui/icons-material/GroupsRounded';
 import ScheduleRounded from '@mui/icons-material/ScheduleRounded';
 import SettingsRounded from '@mui/icons-material/SettingsRounded';
-import SyncRounded from '@mui/icons-material/SyncRounded';
 import { Box, List, ListItemButton, ListItemIcon, ListItemText, Typography } from '@mui/material';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 const items = [
-  { path: '/', label: 'Dashboard', icon: <DashboardRounded /> },
+  { path: '/', label: 'لوحة التحكم', icon: <DashboardRounded /> },
   { path: '/members', label: 'جميع اللاعبين', icon: <GroupsRounded /> },
   { path: '/expiring', label: 'قريب ينتهي', icon: <ScheduleRounded /> },
   { path: '/expired', label: 'المنتهين', icon: <EventBusyRounded /> },
-  { path: '/renewals', label: 'التجديد', icon: <SyncRounded /> },
   { path: '/settings', label: 'الإعدادات', icon: <SettingsRounded /> },
 ];
 

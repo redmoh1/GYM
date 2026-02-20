@@ -20,8 +20,20 @@ export function AppLayout({ children, search, setSearch, onAdd }: Props) {
         </Box>
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-          <Box sx={{ p: 1.5, bgcolor: 'white', borderRadius: 3, border: '1px solid #E2E8F0', display: 'flex', gap: 1, alignItems: 'center' }}>
-            <Typography fontWeight={800} sx={{ minWidth: 190 }}>نظام إدارة اشتراكات الجيم</Typography>
+          <Box
+            sx={{
+              p: 1.5,
+              bgcolor: 'white',
+              borderRadius: 3,
+              border: '1px solid #E2E8F0',
+              display: 'flex',
+              gap: 1,
+              alignItems: 'center',
+            }}
+          >
+            <Typography fontWeight={800} sx={{ minWidth: 190 }}>
+              نظام إدارة اشتراكات الجيم
+            </Typography>
             <TextField
               size="small"
               fullWidth

@@ -5,7 +5,15 @@ import type { AppSettings, MemberPayload, MembersQuery, RenewalPayload } from '@
 import { dialog, ipcMain } from 'electron';
 import log from 'electron-log';
 
-import { backupDatabase, exportMembersExcel, exportMembersPdf } from '../services/file.service';
+import { app } from 'electron';
+
+import {
+  backupDatabase,
+  exportMembersExcel,
+  exportMembersPdf,
+  getDefaultBackupName,
+  restoreDatabase,
+} from '../services/file.service';
 import {
   createMember,
   deleteMember,
@@ -54,13 +62,34 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('backup:create', async () => {
     const result = await dialog.showSaveDialog({
-      title: 'Backup Database',
-      defaultPath: path.join(process.cwd(), `backup-${Date.now()}.db`),
+      title: 'تحميل نسخة احتياطية',
+      defaultPath: path.join(app.getPath('documents'), getDefaultBackupName()),
       filters: [{ name: 'Database', extensions: ['db'] }],
     });
 
     if (result.canceled || !result.filePath) return null;
     return backupDatabase(result.filePath);
+  });
+
+  ipcMain.handle('backup:restore', async () => {
+    const openResult = await dialog.showOpenDialog({
+      title: 'استرجاع نسخة احتياطية',
+      properties: ['openFile'],
+      filters: [{ name: 'Database', extensions: ['db'] }],
+    });
+    if (openResult.canceled || openResult.filePaths.length === 0) return { restored: false };
+
+    const selectedBackup = openResult.filePaths[0];
+    await restoreDatabase(selectedBackup);
+
+    // Prevent auto-backup from running during restore-triggered restart.
+    process.env.SKIP_AUTO_BACKUP_ON_QUIT = '1';
+    setTimeout(() => {
+      app.relaunch();
+      app.quit();
+    }, 350);
+
+    return { restored: true };
   });
 
   ipcMain.handle('logs:write', async (_, message: string) => {

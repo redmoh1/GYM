@@ -39,7 +39,6 @@ class GymDatabase:
         self._create_tables()
 
     def _create_tables(self) -> None:
-        """Create required tables if they do not exist."""
         query = """
         CREATE TABLE IF NOT EXISTS members (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,7 +62,6 @@ class GymDatabase:
 
     @staticmethod
     def add_months(start: date, months: int) -> date:
-        """Add months safely while handling month-end dates."""
         month_index = start.month - 1 + months
         year = start.year + month_index // 12
         month = month_index % 12 + 1
@@ -72,14 +70,12 @@ class GymDatabase:
 
     @classmethod
     def calculate_end_date(cls, start_date: str, duration_months: int) -> str:
-        """Calculate end date from start date and subscription months."""
         start = cls._to_date(start_date)
         end = cls.add_months(start, duration_months)
         return end.strftime(DATE_FMT)
 
     @staticmethod
     def get_status(end_date: str, today: date | None = None) -> tuple[str, int]:
-        """Return status and remaining days based on today's date."""
         current = today or date.today()
         end = datetime.strptime(end_date, DATE_FMT).date()
         days_left = (end - current).days
@@ -104,15 +100,7 @@ class GymDatabase:
             days_left=days_left,
         )
 
-    def add_member(
-        self,
-        full_name: str,
-        phone: str,
-        start_date: str,
-        duration_months: int = 1,
-        notes: str = "",
-    ) -> int:
-        """Insert a new member and return the generated ID."""
+    def add_member(self, full_name: str, phone: str, start_date: str, duration_months: int = 1, notes: str = "") -> int:
         end_date = self.calculate_end_date(start_date, duration_months)
         cursor = self.conn.execute(
             """
@@ -133,7 +121,6 @@ class GymDatabase:
         duration_months: int,
         notes: str = "",
     ) -> None:
-        """Update member data and recalculate end date."""
         end_date = self.calculate_end_date(start_date, duration_months)
         self.conn.execute(
             """
@@ -174,8 +161,7 @@ class GymDatabase:
         return [self._row_to_member(row) for row in rows]
 
     def get_members_by_status(self, status: str) -> list[Member]:
-        members = self.get_all_members()
-        return [m for m in members if m.status == status]
+        return [m for m in self.get_all_members() if m.status == status]
 
     def get_expired_members(self) -> list[Member]:
         return self.get_members_by_status("منتهي")
@@ -184,8 +170,8 @@ class GymDatabase:
         soon = self.get_members_by_status("قريب ينتهي")
         return sorted(soon, key=lambda member: member.days_left)
 
-    def renew_subscription(self, member_id: int, months: int) -> None:
-        """Renew subscription based on end date and current status."""
+    def renew_subscription(self, member_id: int, months: int) -> str:
+        """Renew and return the new end date (YYYY-MM-DD)."""
         row = self.conn.execute("SELECT * FROM members WHERE id = ?", (member_id,)).fetchone()
         if not row:
             raise ValueError("Member not found")
@@ -196,21 +182,34 @@ class GymDatabase:
 
         if status == "منتهي":
             new_start = today
+            new_duration = months
         else:
             new_start = current_end
+            new_duration = int(row["duration_months"]) + months
 
-        new_end = self.add_months(new_start, months)
-        new_duration = int(row["duration_months"]) + months
+        new_end = self.add_months(new_start, months).strftime(DATE_FMT)
 
-        self.conn.execute(
-            """
-            UPDATE members
-            SET duration_months = ?, end_date = ?
-            WHERE id = ?
-            """,
-            (new_duration, new_end.strftime(DATE_FMT), member_id),
-        )
+        if status == "منتهي":
+            self.conn.execute(
+                """
+                UPDATE members
+                SET start_date = ?, duration_months = ?, end_date = ?
+                WHERE id = ?
+                """,
+                (today.strftime(DATE_FMT), new_duration, new_end, member_id),
+            )
+        else:
+            self.conn.execute(
+                """
+                UPDATE members
+                SET duration_months = ?, end_date = ?
+                WHERE id = ?
+                """,
+                (new_duration, new_end, member_id),
+            )
+
         self.conn.commit()
+        return new_end
 
     def get_counters(self) -> dict[str, int]:
         members = self.get_all_members()
@@ -225,7 +224,6 @@ class GymDatabase:
         }
 
     def export_rows(self) -> list[dict[str, Any]]:
-        """Return rows in dict form for export operations."""
         return [
             {
                 "ID": member.id,

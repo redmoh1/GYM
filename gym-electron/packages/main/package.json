@@ -14,6 +14,7 @@
   "dependencies": {
     "@gym/shared": "1.0.0",
     "@prisma/client": "^6.4.1",
+    "chokidar": "^4.0.3",
     "date-fns": "^4.1.0",
     "electron-log": "^5.2.4",
     "fs-extra": "^11.3.0",

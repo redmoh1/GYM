@@ -15,7 +15,7 @@ interface GymState {
   createMember: (payload: MemberPayload) => Promise<void>;
   updateMember: (id: number, payload: MemberPayload) => Promise<void>;
   deleteMember: (id: number) => Promise<void>;
-  renewMember: (payload: RenewalPayload) => Promise<void>;
+  renewMember: (payload: RenewalPayload) => Promise<MemberDTO>;
   updateSettings: (payload: Partial<AppSettings>) => Promise<void>;
 }
 
@@ -47,7 +47,7 @@ export const useGymStore = create<GymState>((set) => ({
     await api.members.delete(id);
   },
   renewMember: async (payload) => {
-    await api.members.renew(payload);
+    return api.members.renew(payload);
   },
   updateSettings: async (payload) => {
     const settings = await api.settings.update(payload);

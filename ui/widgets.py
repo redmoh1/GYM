@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QFrame,
     QGraphicsDropShadowEffect,
-    QHBoxLayout,
     QLabel,
     QPushButton,
     QSizePolicy,
@@ -139,7 +138,6 @@ class Sidebar(QWidget):
             SidebarItem("all", "جميع اللاعبين", QStyle.SP_FileDialogListView),
             SidebarItem("soon", "قريب ينتهي", QStyle.SP_BrowserReload),
             SidebarItem("expired", "المنتهين", QStyle.SP_MessageBoxWarning),
-            SidebarItem("renew", "التجديد", QStyle.SP_DialogApplyButton),
             SidebarItem("settings", "الإعدادات", QStyle.SP_FileDialogDetailedView),
         ]
 
@@ -153,7 +151,6 @@ class Sidebar(QWidget):
             btn.setCheckable(True)
             btn.setCursor(Qt.PointingHandCursor)
             btn.setIcon(QIcon(style.standardIcon(item.icon)))
-            btn.setIconSize(btn.iconSize())
             btn.setLayoutDirection(Qt.RightToLeft)
             btn.setMinimumHeight(42)
             btn.clicked.connect(lambda _=False, k=item.key: self.page_changed.emit(k))

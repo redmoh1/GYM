@@ -1,4 +1,4 @@
-"""Modern commercial-grade main window (UI/UX layer only)."""
+"""Modern main window for Gym Management System (Python/PySide6)."""
 
 from __future__ import annotations
 
@@ -11,17 +11,19 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QDialog,
     QFileDialog,
+    QFormLayout,
     QFrame,
     QHBoxLayout,
     QHeaderView,
-    QInputDialog,
     QLabel,
     QLineEdit,
     QMainWindow,
     QMessageBox,
     QPushButton,
     QSizePolicy,
+    QSpinBox,
     QStackedWidget,
     QStyle,
     QTableWidget,
@@ -31,12 +33,52 @@ from PySide6.QtWidgets import (
 )
 
 from database import GymDatabase, Member
+from ui.dashboard_page import DashboardWidget
 from ui.member_dialog import MemberDialog
-from ui.widgets import AnimatedButton, CardWidget, Sidebar
+from ui.services.dashboard_service import DashboardService
+from ui.widgets import AnimatedButton, Sidebar
+
+
+class RenewalDialog(QDialog):
+    """Small dialog to select renewal months."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("تجديد الاشتراك")
+        self.setLayoutDirection(Qt.RightToLeft)
+        self.setMinimumWidth(300)
+
+        self.months_spin = QSpinBox()
+        self.months_spin.setRange(1, 12)
+        self.months_spin.setValue(1)
+
+        form = QFormLayout()
+        form.addRow("عدد الأشهر:", self.months_spin)
+
+        ok_btn = QPushButton("تأكيد")
+        cancel_btn = QPushButton("إلغاء")
+        cancel_btn.setObjectName("btnGhost")
+        ok_btn.clicked.connect(self.accept)
+        cancel_btn.clicked.connect(self.reject)
+
+        actions = QHBoxLayout()
+        actions.addStretch()
+        actions.addWidget(cancel_btn)
+        actions.addWidget(ok_btn)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(14, 14, 14, 14)
+        root.setSpacing(10)
+        root.addLayout(form)
+        root.addLayout(actions)
+
+    @property
+    def months(self) -> int:
+        return self.months_spin.value()
 
 
 class MainWindow(QMainWindow):
-    """Main shell with Sidebar, TopBar, Dashboard and operational pages."""
+    """Main shell with sidebar, dashboard and members pages."""
 
     HEADERS = [
         "ID",
@@ -48,70 +90,58 @@ class MainWindow(QMainWindow):
         "الحالة",
         "المتبقي",
         "ملاحظات",
-        "تعديل",
-        "حذف",
+        "إجراءات",
     ]
-
-    STATUS_COLORS = {
-        "ساري": QColor("#16a34a"),
-        "قريب ينتهي": QColor("#f59e0b"),
-        "منتهي": QColor("#dc2626"),
-    }
-
-    STATUS_BG = {
-        "ساري": QColor("#f0fdf4"),
-        "قريب ينتهي": QColor("#fff7ed"),
-        "منتهي": QColor("#fef2f2"),
-    }
 
     def __init__(self) -> None:
         super().__init__()
         self.db = GymDatabase("gym.db")
+        self.dashboard_service = DashboardService(self.db)
 
-        self.setWindowTitle("Gym Management System - إدارة اشتراكات الجيم")
+        self.setWindowTitle("Gym Manager")
         self.resize(1460, 900)
         self.setMinimumSize(1180, 720)
         self.setLayoutDirection(Qt.RightToLeft)
 
-        self.search_edit = QLineEdit(objectName="searchInput")
-        self.search_edit.setPlaceholderText("ابحث بالاسم أو رقم الهاتف...")
-
-        self.add_member_btn = AnimatedButton("+ إضافة لاعب")
-
-        self.status_filter_combo = QComboBox()
-        self.status_filter_combo.addItems(["الكل", "ساري", "قريب ينتهي", "منتهي"])
-
-        self.all_table = self._build_table(show_actions=True)
-        self.soon_table = self._build_table(show_actions=True)
-        self.expired_table = self._build_table(show_actions=True)
-        self.renew_table = self._build_table(show_actions=True)
-        self.dashboard_soon_table = self._build_table(show_actions=False)
-
-        self.card_active = CardWidget("المشتركين النشطين", "0", "primary")
-        self.card_soon = CardWidget("القريبين من الانتهاء", "0", "warning")
-        self.card_expired = CardWidget("المنتهين", "0", "danger")
-
         self.sidebar = Sidebar()
         self.pages = QStackedWidget()
 
+        self.search_edit = QLineEdit(objectName="searchInput")
+        self.search_edit.setPlaceholderText("ابحث بالاسم أو الهاتف...")
+        self.search_edit.addAction(self.style().standardIcon(QStyle.SP_FileDialogContentsView), QLineEdit.LeadingPosition)
+
+        self.add_member_btn = AnimatedButton("+ إضافة لاعب")
+        self.status_filter_combo = QComboBox()
+        self.status_filter_combo.addItems(["الكل", "ساري", "قريب ينتهي", "منتهي"])
+
+        self.all_table = self._build_member_table()
+        self.soon_table = self._build_member_table()
+        self.expired_table = self._build_member_table()
+
+        self.dashboard = DashboardWidget(
+            on_open_soon=lambda: self.switch_page("soon"),
+            on_renew=lambda member_id: self.renew_member_by_id(member_id),
+            on_edit=self.edit_member_by_id,
+            on_open_active=lambda: self.switch_page("all"),
+            on_open_expired=lambda: self.switch_page("expired"),
+        )
+
         self._build_ui()
         self._connect_signals()
-
         self.refresh_all_data()
-        self.show_alerts()
 
     def _build_ui(self) -> None:
         root = QWidget(objectName="appRoot")
         self.setCentralWidget(root)
 
         root_layout = QHBoxLayout(root)
-        root_layout.setContentsMargins(16, 16, 16, 16)
-        root_layout.setSpacing(14)
+        root_layout.setContentsMargins(14, 14, 14, 14)
+        root_layout.setSpacing(12)
 
         content = QWidget()
         content_layout = QVBoxLayout(content)
         content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(14)
+        content_layout.setSpacing(10)
         content_layout.addWidget(self._build_topbar())
         content_layout.addWidget(self._build_pages(), 1)
 
@@ -121,7 +151,7 @@ class MainWindow(QMainWindow):
     def _build_topbar(self) -> QWidget:
         topbar = QFrame(objectName="topBar")
         layout = QHBoxLayout(topbar)
-        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setContentsMargins(14, 10, 14, 10)
         layout.setSpacing(10)
 
         title = QLabel("نظام إدارة اشتراكات الجيم", objectName="systemName")
@@ -133,46 +163,21 @@ class MainWindow(QMainWindow):
         return topbar
 
     def _build_pages(self) -> QWidget:
-        self.pages.addWidget(self._dashboard_page())
+        self.pages.addWidget(self.dashboard)
         self.pages.addWidget(self._all_page())
         self.pages.addWidget(self._soon_page())
         self.pages.addWidget(self._expired_page())
-        self.pages.addWidget(self._renew_page())
         self.pages.addWidget(self._settings_page())
         return self.pages
-
-    def _dashboard_page(self) -> QWidget:
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(14)
-
-        cards = QHBoxLayout()
-        cards.setSpacing(14)
-        cards.addWidget(self.card_active, 1)
-        cards.addWidget(self.card_soon, 1)
-        cards.addWidget(self.card_expired, 1)
-
-        panel = QFrame(objectName="sectionPanel")
-        panel_layout = QVBoxLayout(panel)
-        panel_layout.setContentsMargins(14, 14, 14, 14)
-        panel_layout.setSpacing(10)
-        panel_layout.addWidget(QLabel("أقرب 10 اشتراكات تنتهي", objectName="sectionTitle"))
-        panel_layout.addWidget(self.dashboard_soon_table)
-
-        layout.addLayout(cards)
-        layout.addWidget(panel, 1)
-        layout.setStretch(0, 0)
-        layout.setStretch(1, 1)
-        return page
 
     def _all_page(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
+        layout.setSpacing(10)
 
         toolbar = QHBoxLayout()
+        toolbar.setSpacing(8)
         toolbar.addWidget(QLabel("فلترة حسب الحالة:", objectName="mutedText"))
         toolbar.addWidget(self.status_filter_combo)
 
@@ -194,7 +199,7 @@ class MainWindow(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(8)
         layout.addWidget(QLabel("الاشتراكات القريبة من الانتهاء", objectName="sectionTitle"))
         layout.addWidget(self.soon_table, 1)
         return page
@@ -203,27 +208,9 @@ class MainWindow(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(8)
         layout.addWidget(QLabel("الاشتراكات المنتهية", objectName="sectionTitle"))
         layout.addWidget(self.expired_table, 1)
-        return page
-
-    def _renew_page(self) -> QWidget:
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
-
-        top = QHBoxLayout()
-        top.addWidget(QLabel("اختر لاعبًا من الجدول ثم اضغط تجديد الاشتراك.", objectName="mutedText"))
-        top.addStretch()
-
-        self.renew_btn = QPushButton("تجديد الاشتراك")
-        self.renew_btn.setObjectName("btnGhost")
-        top.addWidget(self.renew_btn)
-
-        layout.addLayout(top)
-        layout.addWidget(self.renew_table, 1)
         return page
 
     def _settings_page(self) -> QWidget:
@@ -233,15 +220,16 @@ class MainWindow(QMainWindow):
 
         panel = QFrame(objectName="sectionPanel")
         panel_layout = QVBoxLayout(panel)
-        panel_layout.setContentsMargins(18, 18, 18, 18)
-        panel_layout.setSpacing(12)
+        panel_layout.setContentsMargins(16, 16, 16, 16)
+        panel_layout.setSpacing(10)
 
         panel_layout.addWidget(QLabel("الإعدادات", objectName="sectionTitle"))
-        panel_layout.addWidget(QLabel("يمكنك إدارة النسخ الاحتياطي والتصدير من هذه الصفحة.", objectName="mutedText"))
+        panel_layout.addWidget(QLabel("إدارة التصدير والنسخ الاحتياطي.", objectName="mutedText"))
 
         row = QHBoxLayout()
         self.settings_export_btn = QPushButton("تصدير البيانات")
         self.settings_export_btn.setObjectName("btnGhost")
+
         self.settings_backup_btn = QPushButton("نسخة احتياطية")
         self.settings_backup_btn.setObjectName("btnGhost")
 
@@ -254,12 +242,10 @@ class MainWindow(QMainWindow):
         layout.addStretch()
         return page
 
-    def _build_table(self, show_actions: bool) -> QTableWidget:
+    def _build_member_table(self) -> QTableWidget:
         table = QTableWidget()
-        headers = self.HEADERS if show_actions else self.HEADERS[:-2]
-
-        table.setColumnCount(len(headers))
-        table.setHorizontalHeaderLabels(headers)
+        table.setColumnCount(len(self.HEADERS))
+        table.setHorizontalHeaderLabels(self.HEADERS)
         table.setAlternatingRowColors(True)
         table.setSelectionBehavior(QTableWidget.SelectRows)
         table.setSelectionMode(QTableWidget.SingleSelection)
@@ -273,6 +259,7 @@ class MainWindow(QMainWindow):
         header = table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.Stretch)
+        header.setSectionResizeMode(9, QHeaderView.Stretch)
         return table
 
     def _connect_signals(self) -> None:
@@ -282,33 +269,43 @@ class MainWindow(QMainWindow):
         self.status_filter_combo.currentTextChanged.connect(self.refresh_all_data)
 
         self.add_member_btn.clicked.connect(self.add_member)
-        self.renew_btn.clicked.connect(self.renew_member)
 
         self.export_btn.clicked.connect(self.export_excel)
         self.backup_btn.clicked.connect(self.backup_database)
         self.settings_export_btn.clicked.connect(self.export_excel)
         self.settings_backup_btn.clicked.connect(self.backup_database)
 
-    def switch_page(self, key: str) -> None:
-        page_map = {
-            "dashboard": 0,
-            "all": 1,
-            "soon": 2,
-            "expired": 3,
-            "renew": 4,
-            "settings": 5,
-        }
-        self.pages.setCurrentIndex(page_map.get(key, 0))
-        self.sidebar.set_active(key)
+    @staticmethod
+    def _status_from_days(days_left: int) -> str:
+        if days_left < 0:
+            return "منتهي"
+        if days_left <= 7:
+            return "قريب ينتهي"
+        return "ساري"
 
-    def _status_color(self, status: str) -> QColor:
-        return self.STATUS_COLORS.get(status, QColor("#334155"))
+    @staticmethod
+    def _status_color(status: str) -> QColor:
+        if status == "منتهي":
+            return QColor("#dc2626")
+        if status == "قريب ينتهي":
+            return QColor("#f59e0b")
+        return QColor("#16a34a")
 
-    def _status_bg(self, status: str) -> QColor:
-        return self.STATUS_BG.get(status, QColor("#ffffff"))
+    @staticmethod
+    def _status_bg(status: str) -> QColor:
+        if status == "منتهي":
+            return QColor("#fef2f2")
+        if status == "قريب ينتهي":
+            return QColor("#fff7ed")
+        return QColor("#f0fdf4")
 
-    def _add_action_buttons(self, table: QTableWidget, row: int, member_id: int) -> None:
+    def _build_actions_cell(self, member_id: int, member_name: str) -> QWidget:
         style = QApplication.style()
+
+        renew_btn = QPushButton("تجديد")
+        renew_btn.setObjectName("btnGhost")
+        renew_btn.setIcon(style.standardIcon(QStyle.SP_BrowserReload))
+        renew_btn.clicked.connect(lambda: self.renew_member_by_id(member_id, member_name, renew_btn))
 
         edit_btn = QPushButton()
         edit_btn.setObjectName("tableIconBtn")
@@ -322,25 +319,24 @@ class MainWindow(QMainWindow):
         delete_btn.setToolTip("حذف")
         delete_btn.clicked.connect(lambda: self.delete_member_by_id(member_id))
 
-        edit_cell = QWidget()
-        edit_l = QHBoxLayout(edit_cell)
-        edit_l.setContentsMargins(0, 0, 0, 0)
-        edit_l.setAlignment(Qt.AlignCenter)
-        edit_l.addWidget(edit_btn)
+        cell = QWidget()
+        layout = QHBoxLayout(cell)
+        layout.setContentsMargins(4, 0, 4, 0)
+        layout.setSpacing(6)
+        layout.setAlignment(Qt.AlignCenter)
+        layout.addWidget(renew_btn)
+        layout.addWidget(edit_btn)
+        layout.addWidget(delete_btn)
+        return cell
 
-        delete_cell = QWidget()
-        delete_l = QHBoxLayout(delete_cell)
-        delete_l.setContentsMargins(0, 0, 0, 0)
-        delete_l.setAlignment(Qt.AlignCenter)
-        delete_l.addWidget(delete_btn)
-
-        table.setCellWidget(row, 9, edit_cell)
-        table.setCellWidget(row, 10, delete_cell)
-
-    def _populate_table(self, table: QTableWidget, members: list[Member], show_actions: bool) -> None:
+    def _populate_member_table(self, table: QTableWidget, members: list[Member]) -> None:
         table.setRowCount(len(members))
 
         for row, member in enumerate(members):
+            status = self._status_from_days(member.days_left)
+            row_bg = self._status_bg(status)
+            status_fg = self._status_color(status)
+
             values = [
                 str(member.id),
                 member.full_name,
@@ -348,83 +344,64 @@ class MainWindow(QMainWindow):
                 member.start_date,
                 str(member.duration_months),
                 member.end_date,
-                member.status,
+                status,
                 str(member.days_left),
                 member.notes,
             ]
 
-            # Example of dynamic status coloring on each row.
-            row_bg = self._status_bg(member.status)
-            status_fg = self._status_color(member.status)
-
             for col, value in enumerate(values):
                 item = QTableWidgetItem(value)
                 item.setTextAlignment(Qt.AlignCenter)
-
                 if col in (1, 8):
                     item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-
                 if col == 6:
                     item.setForeground(status_fg)
-
+                if col == 7:
+                    item.setForeground(self.dashboard._days_color(member.days_left))
                 item.setBackground(row_bg)
                 table.setItem(row, col, item)
 
-            if show_actions:
-                self._add_action_buttons(table, row, member.id)
+            table.setCellWidget(row, 9, self._build_actions_cell(member.id, member.full_name))
 
         table.resizeColumnsToContents()
 
-    def _filtered_members(self) -> list[Member]:
-        members = self.db.search_members(self.search_edit.text().strip())
+    def _filtered_members(self, members: list[Member]) -> list[Member]:
         selected = self.status_filter_combo.currentText()
-
         if selected == "الكل":
             return members
-        return [m for m in members if m.status == selected]
+        return [m for m in members if self._status_from_days(m.days_left) == selected]
 
     def refresh_all_data(self) -> None:
         search_members = self.db.search_members(self.search_edit.text().strip())
-        all_members = self._filtered_members()
-        soon = self.db.get_ending_soon_members()
-        expired = self.db.get_expired_members()
+        all_members = self._filtered_members(search_members)
 
-        self._populate_table(self.all_table, all_members, show_actions=True)
-        self._populate_table(self.soon_table, soon, show_actions=True)
-        self._populate_table(self.expired_table, expired, show_actions=True)
-        self._populate_table(self.renew_table, search_members, show_actions=True)
-        self._populate_table(self.dashboard_soon_table, soon[:10], show_actions=False)
+        soon = sorted([member for member in search_members if 0 <= member.days_left <= 7], key=lambda member: member.days_left)
+        expired = sorted([member for member in search_members if member.days_left < 0], key=lambda member: member.days_left)
 
-        self._refresh_cards()
+        self._populate_member_table(self.all_table, all_members)
+        self._populate_member_table(self.soon_table, soon)
+        self._populate_member_table(self.expired_table, expired)
+        self.dashboard.update_data(self.dashboard_service.build())
 
-    def _refresh_cards(self) -> None:
-        counters = self.db.get_counters()
-        self.card_active.set_value(counters["active"])
-        self.card_soon.set_value(counters["ending_soon"])
-        self.card_expired.set_value(counters["expired"])
-
-    def _selected_member_id(self) -> int | None:
-        table_by_page = {
-            1: self.all_table,
-            2: self.soon_table,
-            3: self.expired_table,
-            4: self.renew_table,
+    def switch_page(self, key: str) -> None:
+        page_map = {
+            "dashboard": 0,
+            "all": 1,
+            "soon": 2,
+            "expired": 3,
+            "settings": 4,
         }
+        self.pages.setCurrentIndex(page_map.get(key, 0))
+        self.sidebar.set_active(key)
 
-        active_table = table_by_page.get(self.pages.currentIndex())
-        if active_table is None:
-            return None
-
-        row = active_table.currentRow()
-        if row < 0 or active_table.item(row, 0) is None:
-            return None
-
-        return int(active_table.item(row, 0).text())
+    def _show_toast(self, message: str) -> None:
+        self.statusBar().showMessage(message, 3000)
 
     def add_member(self) -> None:
         dialog = MemberDialog(self.db, parent=self)
         if dialog.exec():
             self.refresh_all_data()
+            self._show_toast("تمت إضافة اللاعب بنجاح")
 
     def edit_member_by_id(self, member_id: int) -> None:
         member = self.db.get_member(member_id)
@@ -435,6 +412,7 @@ class MainWindow(QMainWindow):
         dialog = MemberDialog(self.db, member=member, parent=self)
         if dialog.exec():
             self.refresh_all_data()
+            self._show_toast("تم تعديل بيانات اللاعب")
 
     def delete_member_by_id(self, member_id: int) -> None:
         confirm = QMessageBox.question(
@@ -447,28 +425,40 @@ class MainWindow(QMainWindow):
         if confirm == QMessageBox.Yes:
             self.db.delete_member(member_id)
             self.refresh_all_data()
+            self._show_toast("تم حذف اللاعب")
 
-    def renew_member(self) -> None:
-        member_id = self._selected_member_id()
-        if member_id is None:
-            QMessageBox.information(self, "تنبيه", "اختر لاعبًا أولًا.")
+    def renew_member_by_id(self, member_id: int, member_name: str | None = None, trigger_btn: QPushButton | None = None) -> None:
+        member = self.db.get_member(member_id)
+        if member is None:
+            QMessageBox.warning(self, "خطأ", "تعذر العثور على بيانات اللاعب.")
             return
 
-        months, ok = QInputDialog.getInt(
+        name = member_name or member.full_name
+        dialog = RenewalDialog(self)
+        if not dialog.exec():
+            return
+
+        months = dialog.months
+        confirm = QMessageBox.question(
             self,
-            "تجديد الاشتراك",
-            "عدد الأشهر للتجديد:",
-            1,
-            1,
-            24,
-            1,
+            "تأكيد التجديد",
+            f"هل تريد تجديد اشتراك {name} لمدة {months} شهر؟",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes,
         )
-        if not ok:
+        if confirm != QMessageBox.Yes:
             return
 
-        self.db.renew_subscription(member_id, months)
-        self.refresh_all_data()
-        QMessageBox.information(self, "تم", "تم تجديد الاشتراك بنجاح.")
+        if trigger_btn is not None:
+            trigger_btn.setEnabled(False)
+        try:
+            QApplication.processEvents()
+            new_end = self.db.renew_subscription(member_id, months)
+            self.refresh_all_data()
+            self._show_toast(f"تم تجديد اشتراك اللاعب بنجاح حتى: {new_end}")
+        finally:
+            if trigger_btn is not None:
+                trigger_btn.setEnabled(True)
 
     def export_excel(self) -> None:
         rows = self.db.export_rows()
@@ -495,7 +485,7 @@ class MainWindow(QMainWindow):
             sheet.append([row[h] for h in headers])
 
         workbook.save(file_path)
-        QMessageBox.information(self, "تم", "تم تصدير البيانات إلى Excel بنجاح.")
+        self._show_toast("تم تصدير البيانات إلى Excel")
 
     def backup_database(self) -> None:
         backup_path, _ = QFileDialog.getSaveFileName(
@@ -508,20 +498,7 @@ class MainWindow(QMainWindow):
             return
 
         self.db.backup_database(backup_path)
-        QMessageBox.information(self, "تم", "تم إنشاء النسخة الاحتياطية بنجاح.")
-
-    def show_alerts(self) -> None:
-        expired = self.db.get_expired_members()
-        soon = self.db.get_ending_soon_members()
-
-        messages = []
-        if expired:
-            messages.append(f"عدد الاشتراكات المنتهية: {len(expired)}")
-        if soon:
-            messages.append(f"عدد الاشتراكات القريبة من الانتهاء: {len(soon)}")
-
-        if messages:
-            QMessageBox.warning(self, "تنبيه الاشتراكات", "\n".join(messages))
+        self._show_toast("تم إنشاء النسخة الاحتياطية")
 
     def closeEvent(self, event) -> None:  # noqa: N802
         self.db.close()

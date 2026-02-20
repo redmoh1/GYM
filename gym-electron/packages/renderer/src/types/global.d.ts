@@ -26,6 +26,7 @@ declare global {
       exportExcel: () => Promise<string | null>;
       exportPdf: () => Promise<string | null>;
       backupDatabase: () => Promise<string | null>;
+      restoreDatabase: () => Promise<{ restored: boolean }>;
       writeLog: (message: string) => Promise<boolean>;
       onShortcut: (handler: (action: string) => void) => () => void;
     };

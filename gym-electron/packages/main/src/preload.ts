@@ -30,6 +30,8 @@ const api = {
   exportExcel: () => ipcRenderer.invoke('export:excel') as Promise<string | null>,
   exportPdf: () => ipcRenderer.invoke('export:pdf') as Promise<string | null>,
   backupDatabase: () => ipcRenderer.invoke('backup:create') as Promise<string | null>,
+  restoreDatabase: () =>
+    ipcRenderer.invoke('backup:restore') as Promise<{ restored: boolean }>,
   writeLog: (message: string) => ipcRenderer.invoke('logs:write', message) as Promise<boolean>,
   onShortcut: (handler: (action: string) => void) => {
     const listener = (_: unknown, action: string) => handler(action);

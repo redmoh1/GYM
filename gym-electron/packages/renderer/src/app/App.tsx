@@ -14,7 +14,6 @@ import { DashboardPage } from '../pages/DashboardPage';
 import { ExpiredPage } from '../pages/ExpiredPage';
 import { ExpiringSoonPage } from '../pages/ExpiringSoonPage';
 import { MembersPage } from '../pages/MembersPage';
-import { RenewalsPage } from '../pages/RenewalsPage';
 import { SettingsPage } from '../pages/SettingsPage';
 import { useGymStore } from '../store/useGymStore';
 import { theme } from '../styles/theme';
@@ -34,14 +33,16 @@ function AppShell() {
   useEffect(() => {
     if (!dashboard) return;
     if (dashboard.counters.expiringSoon > 0 || dashboard.counters.expired > 0) {
-      enqueueSnackbar(`تنبيه: ${dashboard.counters.expiringSoon} قريب ينتهي / ${dashboard.counters.expired} منتهي`, { variant: 'warning' });
+      enqueueSnackbar(`تنبيه: ${dashboard.counters.expiringSoon} قريب ينتهي / ${dashboard.counters.expired} منتهي`, {
+        variant: 'warning',
+      });
     }
   }, [dashboard, enqueueSnackbar]);
 
   useEffect(() => {
     const unsub = window.api.onShortcut((action) => {
       if (action === 'add-member') setOpenAdd(true);
-      if (action === 'renew') enqueueSnackbar('اختصار التجديد: انتقل إلى صفحة التجديد', { variant: 'info' });
+      if (action === 'renew') enqueueSnackbar('استخدم زر تجديد داخل جداول اللاعبين', { variant: 'info' });
     });
     return unsub;
   }, [enqueueSnackbar]);
@@ -65,11 +66,10 @@ function AppShell() {
   return (
     <AppLayout search={search} setSearch={setSearch} onAdd={() => setOpenAdd(true)}>
       <Routes>
-        <Route path="/" element={<DashboardPage />} />
+        <Route path="/" element={<DashboardPage search={search} />} />
         <Route path="/members" element={<MembersPage search={search} />} />
         <Route path="/expiring" element={<ExpiringSoonPage search={search} />} />
         <Route path="/expired" element={<ExpiredPage search={search} />} />
-        <Route path="/renewals" element={<RenewalsPage search={search} />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Routes>
 
@@ -87,11 +87,7 @@ function AppShell() {
 
 export function App() {
   if (!window.api) {
-    return (
-      <div style={{ padding: 24, fontFamily: 'Cairo, Segoe UI, sans-serif' }}>
-        خطأ: preload لم يحقن `window.api`. أعد تشغيل Electron.
-      </div>
-    );
+    return <div style={{ padding: 24, fontFamily: 'Cairo, Segoe UI, sans-serif' }}>خطأ: لم يتم حقن window.api من preload.</div>;
   }
 
   return (

@@ -4,6 +4,7 @@ import DeleteRounded from '@mui/icons-material/DeleteRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
 import PictureAsPdfRounded from '@mui/icons-material/PictureAsPdfRounded';
 import SaveAltRounded from '@mui/icons-material/SaveAltRounded';
+import SyncRounded from '@mui/icons-material/SyncRounded';
 import { Box, IconButton, MenuItem, Paper, Select, Stack } from '@mui/material';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
@@ -11,18 +12,23 @@ import { useSnackbar } from 'notistack';
 import type { MemberDTO } from '@gym/shared';
 
 import { MemberDialog } from '../components/MemberDialog';
+import { RenewMemberDialog } from '../components/RenewMemberDialog';
 import { api } from '../lib/api';
 import { useGymStore } from '../store/useGymStore';
 
-interface Props { search: string }
+interface Props {
+  search: string;
+}
 
 export function MembersPage({ search }: Props) {
   const { enqueueSnackbar } = useSnackbar();
-  const { members, loadMembers, createMember, updateMember, deleteMember } = useGymStore();
+  const { members, loadMembers, loadDashboard, createMember, updateMember, deleteMember, renewMember } = useGymStore();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<MemberDTO | null>(null);
   const [status, setStatus] = useState<'All' | 'Active' | 'ExpiringSoon' | 'Expired'>('All');
+  const [renewTarget, setRenewTarget] = useState<MemberDTO | null>(null);
+  const [renewing, setRenewing] = useState(false);
 
   useEffect(() => {
     void loadMembers({ search, status });
@@ -41,33 +47,64 @@ export function MembersPage({ search }: Props) {
     {
       field: 'actions',
       headerName: 'إجراءات',
-      width: 120,
+      width: 160,
       sortable: false,
-      renderCell: (params) => (
-        <Stack direction="row" spacing={1}>
-          <IconButton size="small" onClick={() => { setEditing(params.row as MemberDTO); setDialogOpen(true); }}>
-            <EditRounded fontSize="small" />
-          </IconButton>
-          <IconButton
-            size="small"
-            color="error"
-            onClick={async () => {
-              await deleteMember((params.row as MemberDTO).id);
-              await loadMembers({ search, status });
-              enqueueSnackbar('تم حذف اللاعب', { variant: 'success' });
-            }}
-          >
-            <DeleteRounded fontSize="small" />
-          </IconButton>
-        </Stack>
-      ),
+      renderCell: (params) => {
+        const row = params.row as MemberDTO;
+        return (
+          <Stack direction="row" spacing={0.5}>
+            <IconButton size="small" color="primary" disabled={renewing} onClick={() => setRenewTarget(row)}>
+              <SyncRounded fontSize="small" />
+            </IconButton>
+            <IconButton
+              size="small"
+              onClick={() => {
+                setEditing(row);
+                setDialogOpen(true);
+              }}
+            >
+              <EditRounded fontSize="small" />
+            </IconButton>
+            <IconButton
+              size="small"
+              color="error"
+              onClick={async () => {
+                if (!window.confirm(`حذف اللاعب: ${row.fullName}؟`)) return;
+                await deleteMember(row.id);
+                await loadMembers({ search, status });
+                await loadDashboard();
+                enqueueSnackbar('تم حذف اللاعب', { variant: 'success' });
+              }}
+            >
+              <DeleteRounded fontSize="small" />
+            </IconButton>
+          </Stack>
+        );
+      },
     },
   ];
+
+  const handleRenew = async (months: number) => {
+    if (!renewTarget) return;
+    const ok = window.confirm(`هل تريد تجديد اشتراك (${renewTarget.fullName}) لمدة ${months} شهر؟`);
+    if (!ok) return;
+
+    setRenewing(true);
+    try {
+      const updated = await renewMember({ memberId: renewTarget.id, months });
+      await loadMembers({ search, status });
+      await loadDashboard();
+      enqueueSnackbar(`تم تجديد اشتراك اللاعب بنجاح حتى: ${updated.endDate}`, { variant: 'success' });
+      setRenewTarget(null);
+    } finally {
+      setRenewing(false);
+    }
+  };
 
   return (
     <Paper sx={{ p: 2, borderRadius: 3, height: '100%' }}>
       <Stack direction="row" spacing={1} mb={1.5}>
-        <Select size="small" value={status} onChange={(e) => setStatus(e.target.value as any)}>
+        <Select size="small" value={status} onChange={(e) => setStatus(e.target.value as 'All' | 'Active' | 'ExpiringSoon' | 'Expired')}>
           <MenuItem value="All">الكل</MenuItem>
           <MenuItem value="Active">ساري</MenuItem>
           <MenuItem value="ExpiringSoon">قريب ينتهي</MenuItem>
@@ -103,13 +140,27 @@ export function MembersPage({ search }: Props) {
       <MemberDialog
         open={dialogOpen}
         member={editing}
-        onClose={() => { setDialogOpen(false); setEditing(null); }}
+        onClose={() => {
+          setDialogOpen(false);
+          setEditing(null);
+        }}
         onSubmit={async (payload) => {
           if (editing) await updateMember(editing.id, payload);
           else await createMember(payload);
           await loadMembers({ search, status });
+          await loadDashboard();
           enqueueSnackbar('تم حفظ البيانات', { variant: 'success' });
         }}
+      />
+
+      <RenewMemberDialog
+        open={Boolean(renewTarget)}
+        memberName={renewTarget?.fullName ?? ''}
+        loading={renewing}
+        onClose={() => {
+          if (!renewing) setRenewTarget(null);
+        }}
+        onConfirm={handleRenew}
       />
     </Paper>
   );
