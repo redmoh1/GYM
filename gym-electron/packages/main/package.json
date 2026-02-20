@@ -1,0 +1,37 @@
+{
+  "name": "@gym/main",
+  "version": "1.0.0",
+  "main": "dist/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "concurrently -k \"tsc -w -p tsconfig.json\" \"wait-on tcp:5190 dist/main/src/main.js && node scripts/start-electron.cjs\"",
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src --ext .ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev --name init",
+    "prisma:seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@gym/shared": "1.0.0",
+    "@prisma/client": "^6.4.1",
+    "date-fns": "^4.1.0",
+    "electron-log": "^5.2.4",
+    "fs-extra": "^11.3.0",
+    "pdfkit": "^0.17.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^22.13.10",
+    "@types/pdfkit": "^0.17.0",
+    "cross-env": "^7.0.3",
+    "electron": "^34.2.0",
+    "prisma": "^6.4.1",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
+}

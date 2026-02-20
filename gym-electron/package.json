@@ -1,0 +1,72 @@
+{
+  "name": "gym-electron",
+  "version": "1.0.0",
+  "private": true,
+  "main": "packages/main/dist/main/src/main.js",
+  "description": "Gym Management Desktop App (Electron + React + TypeScript + Prisma)",
+  "workspaces": [
+    "packages/main",
+    "packages/renderer",
+    "packages/shared"
+  ],
+  "scripts": {
+    "predev": "powershell -ExecutionPolicy Bypass -File scripts/free-dev-port.ps1",
+    "dev": "npm run build:shared && concurrently -k \"npm:dev:renderer\" \"npm:dev:main\"",
+    "dev:renderer": "npm --workspace @gym/renderer run dev",
+    "dev:main": "npm --workspace @gym/main run dev",
+    "build": "npm run build:shared && npm run build:renderer && npm run build:main && electron-builder",
+    "build:shared": "npm --workspace @gym/shared run build",
+    "build:renderer": "npm --workspace @gym/renderer run build",
+    "build:main": "npm --workspace @gym/main run build",
+    "lint": "npm run lint:main && npm run lint:renderer && npm run lint:shared",
+    "lint:main": "npm --workspace @gym/main run lint",
+    "lint:renderer": "npm --workspace @gym/renderer run lint",
+    "lint:shared": "npm --workspace @gym/shared run lint",
+    "format": "prettier --write .",
+    "prisma:generate": "npm --workspace @gym/main run prisma:generate",
+    "prisma:migrate": "npm --workspace @gym/main run prisma:migrate",
+    "prisma:seed": "npm --workspace @gym/main run prisma:seed"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.26.0",
+    "@typescript-eslint/parser": "^8.26.0",
+    "concurrently": "^9.1.2",
+    "electron": "^34.2.0",
+    "electron-builder": "^25.1.8",
+    "eslint": "^9.21.0",
+    "eslint-config-prettier": "^10.1.1",
+    "eslint-plugin-import": "^2.31.0",
+    "prettier": "^3.5.2",
+    "typescript": "^5.8.2",
+    "wait-on": "^8.0.2"
+  },
+  "build": {
+    "appId": "com.gym.desktop",
+    "productName": "GymManager",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "packages/main/dist/**/*",
+      "packages/renderer/dist/**/*",
+      "packages/main/prisma/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "assets",
+        "to": "assets"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}

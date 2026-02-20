@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Member {
+  id             Int       @id @default(autoincrement())
+  fullName       String
+  phone          String
+  startDate      DateTime
+  durationMonths Int       @default(1)
+  endDate        DateTime
+  notes          String    @default("")
+  planId         Int?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  plan     Plan?     @relation(fields: [planId], references: [id])
+  payments Payment[]
+
+  @@index([fullName])
+  @@index([phone])
+  @@index([endDate])
+}
+
+model Payment {
+  id        Int      @id @default(autoincrement())
+  memberId  Int
+  planId    Int?
+  amount    Float
+  months    Int      @default(1)
+  paidAt    DateTime @default(now())
+  method    String   @default("cash")
+  note      String   @default("")
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  plan   Plan?  @relation(fields: [planId], references: [id])
+
+  @@index([memberId])
+  @@index([paidAt])
+}
+
+model Plan {
+  id      Int      @id @default(autoincrement())
+  name    String   @unique
+  months  Int
+  price   Float
+
+  members  Member[]
+  payments Payment[]
+}
+
+model Setting {
+  id    Int    @id @default(autoincrement())
+  key   String @unique
+  value String
+}

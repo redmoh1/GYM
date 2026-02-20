@@ -1,0 +1,20 @@
+@font-face {
+  font-family: 'Cairo';
+  src: url('/fonts/Cairo-Regular.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Tajawal';
+  src: url('/fonts/Tajawal-Regular.ttf') format('truetype');
+  font-display: swap;
+}
+
+:root {
+  font-family: 'Cairo', 'Tajawal', 'Segoe UI', sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #f4f7fb;
+}
