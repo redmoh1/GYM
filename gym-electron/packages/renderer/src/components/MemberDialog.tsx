@@ -51,11 +51,6 @@ export function MemberDialog({ open, member, onClose, onSubmit }: Props) {
       return;
     }
 
-    if (!form.phone.trim()) {
-      window.alert('الرجاء إدخال رقم الهاتف');
-      return;
-    }
-
     setSaving(true);
     try {
       await onSubmit({
@@ -83,7 +78,7 @@ export function MemberDialog({ open, member, onClose, onSubmit }: Props) {
           onChange={(e) => setForm({ ...form, fullName: e.target.value })}
         />
         <TextField
-          label="الهاتف"
+          label="الهاتف (اختياري)"
           value={form.phone}
           onChange={(e) => setForm({ ...form, phone: e.target.value })}
         />

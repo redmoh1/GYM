@@ -57,12 +57,12 @@ export async function createMember(payload: MemberPayload): Promise<MemberDTO> {
 
   const row = await prisma.member.create({
     data: {
-      fullName: payload.fullName,
-      phone: payload.phone,
+      fullName: payload.fullName.trim(),
+      phone: (payload.phone ?? '').trim(),
       startDate: new Date(payload.startDate),
       durationMonths: payload.durationMonths,
       endDate,
-      notes: payload.notes ?? '',
+      notes: (payload.notes ?? '').trim(),
       planId: payload.planId ?? null,
     },
     include: { plan: true },
@@ -78,12 +78,12 @@ export async function updateMember(id: number, payload: MemberPayload): Promise<
   const row = await prisma.member.update({
     where: { id },
     data: {
-      fullName: payload.fullName,
-      phone: payload.phone,
+      fullName: payload.fullName.trim(),
+      phone: (payload.phone ?? '').trim(),
       startDate: new Date(payload.startDate),
       durationMonths: payload.durationMonths,
       endDate,
-      notes: payload.notes ?? '',
+      notes: (payload.notes ?? '').trim(),
       planId: payload.planId ?? null,
     },
     include: { plan: true },
