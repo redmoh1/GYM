@@ -9,6 +9,7 @@ interface GymState {
   dashboard: DashboardDTO | null;
   settings: AppSettings | null;
   loading: boolean;
+  lastMembersQuery: MembersQuery;
   loadMembers: (query?: MembersQuery) => Promise<void>;
   loadDashboard: () => Promise<void>;
   loadSettings: () => Promise<void>;
@@ -24,10 +25,11 @@ export const useGymStore = create<GymState>((set) => ({
   dashboard: null,
   settings: null,
   loading: false,
+  lastMembersQuery: {},
   loadMembers: async (query = {}) => {
     set({ loading: true });
     const members = await api.members.list(query);
-    set({ members, loading: false });
+    set({ members, loading: false, lastMembersQuery: query });
   },
   loadDashboard: async () => {
     const dashboard = await api.dashboard.get();
@@ -39,15 +41,32 @@ export const useGymStore = create<GymState>((set) => ({
   },
   createMember: async (payload) => {
     await api.members.create(payload);
+    const query = useGymStore.getState().lastMembersQuery;
+    const members = await api.members.list(query);
+    const dashboard = await api.dashboard.get();
+    set({ members, dashboard });
   },
   updateMember: async (id, payload) => {
     await api.members.update(id, payload);
+    const query = useGymStore.getState().lastMembersQuery;
+    const members = await api.members.list(query);
+    const dashboard = await api.dashboard.get();
+    set({ members, dashboard });
   },
   deleteMember: async (id) => {
     await api.members.delete(id);
+    const query = useGymStore.getState().lastMembersQuery;
+    const members = await api.members.list(query);
+    const dashboard = await api.dashboard.get();
+    set({ members, dashboard });
   },
   renewMember: async (payload) => {
-    return api.members.renew(payload);
+    const updated = await api.members.renew(payload);
+    const query = useGymStore.getState().lastMembersQuery;
+    const members = await api.members.list(query);
+    const dashboard = await api.dashboard.get();
+    set({ members, dashboard });
+    return updated;
   },
   updateSettings: async (payload) => {
     const settings = await api.settings.update(payload);

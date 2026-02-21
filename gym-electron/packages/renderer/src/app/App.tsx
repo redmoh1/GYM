@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';
@@ -25,6 +25,7 @@ function AppShell() {
   const { createMember, loadDashboard, dashboard } = useGymStore();
   const [search, setSearch] = useState('');
   const [openAdd, setOpenAdd] = useState(false);
+  const startupAlertShownRef = useRef(false);
 
   useEffect(() => {
     void loadDashboard();
@@ -32,6 +33,9 @@ function AppShell() {
 
   useEffect(() => {
     if (!dashboard) return;
+    if (startupAlertShownRef.current) return;
+    startupAlertShownRef.current = true;
+
     if (dashboard.counters.expiringSoon > 0 || dashboard.counters.expired > 0) {
       enqueueSnackbar(`تنبيه: ${dashboard.counters.expiringSoon} قريب ينتهي / ${dashboard.counters.expired} منتهي`, {
         variant: 'warning',

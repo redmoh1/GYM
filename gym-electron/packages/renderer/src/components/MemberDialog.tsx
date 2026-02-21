@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import type { MemberDTO, MemberPayload } from '@gym/shared';
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, TextField } from '@mui/material';
+import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, TextField } from '@mui/material';
 
 interface Props {
   open: boolean;
@@ -24,9 +24,11 @@ function defaultForm(): MemberPayload {
 export function MemberDialog({ open, member, onClose, onSubmit }: Props) {
   const [form, setForm] = useState<MemberPayload>(defaultForm());
   const [saving, setSaving] = useState(false);
+  const [errorText, setErrorText] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
+    setErrorText(null);
 
     if (member) {
       setForm({
@@ -45,9 +47,10 @@ export function MemberDialog({ open, member, onClose, onSubmit }: Props) {
 
   const save = async () => {
     if (saving) return;
+    setErrorText(null);
 
     if (!form.fullName.trim()) {
-      window.alert('الرجاء إدخال الاسم الكامل');
+      setErrorText('الرجاء إدخال الاسم الكامل');
       return;
     }
 
@@ -62,7 +65,7 @@ export function MemberDialog({ open, member, onClose, onSubmit }: Props) {
       onClose();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'فشل حفظ بيانات اللاعب';
-      window.alert(`خطأ: ${message}`);
+      setErrorText(`خطأ: ${message}`);
     } finally {
       setSaving(false);
     }
@@ -72,28 +75,41 @@ export function MemberDialog({ open, member, onClose, onSubmit }: Props) {
     <Dialog open={open} onClose={saving ? undefined : onClose} fullWidth maxWidth="sm">
       <DialogTitle>{member ? 'تعديل لاعب' : 'إضافة لاعب'}</DialogTitle>
       <DialogContent sx={{ display: 'grid', gap: 2, pt: 2 }}>
+        {errorText && <Alert severity="error">{errorText}</Alert>}
         <TextField
           label="الاسم الكامل"
           value={form.fullName}
-          onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+          onChange={(e) => {
+            setErrorText(null);
+            setForm({ ...form, fullName: e.target.value });
+          }}
         />
         <TextField
           label="الهاتف (اختياري)"
           value={form.phone}
-          onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          onChange={(e) => {
+            setErrorText(null);
+            setForm({ ...form, phone: e.target.value });
+          }}
         />
         <TextField
           type="date"
           label="تاريخ البداية"
           value={form.startDate}
           InputLabelProps={{ shrink: true }}
-          onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+          onChange={(e) => {
+            setErrorText(null);
+            setForm({ ...form, startDate: e.target.value });
+          }}
         />
         <TextField
           select
           label="المدة بالأشهر"
           value={form.durationMonths}
-          onChange={(e) => setForm({ ...form, durationMonths: Number(e.target.value) })}
+          onChange={(e) => {
+            setErrorText(null);
+            setForm({ ...form, durationMonths: Number(e.target.value) });
+          }}
         >
           {[1, 2, 3, 6, 12].map((m) => (
             <MenuItem key={m} value={m}>
@@ -104,7 +120,10 @@ export function MemberDialog({ open, member, onClose, onSubmit }: Props) {
         <TextField
           label="ملاحظات"
           value={form.notes}
-          onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          onChange={(e) => {
+            setErrorText(null);
+            setForm({ ...form, notes: e.target.value });
+          }}
           multiline
           rows={3}
         />
