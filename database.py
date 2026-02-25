@@ -12,6 +12,11 @@ from typing import Any
 
 
 DATE_FMT = "%Y-%m-%d"
+DATETIME_FMT = "%Y-%m-%d %H:%M:%S"
+
+STATUS_ACTIVE = "ساري"
+STATUS_EXPIRING = "قريب ينتهي"
+STATUS_EXPIRED = "منتهي"
 
 
 @dataclass
@@ -25,8 +30,28 @@ class Member:
     duration_months: int
     end_date: str
     notes: str
+    card_id: str
+    photo_path: str
     status: str
     days_left: int
+
+
+@dataclass
+class CheckinRecord:
+    """Represents one check-in event row returned from the database."""
+
+    id: int
+    member_id: int | None
+    card_id: str
+    device_name: str
+    checked_at: str
+    result: str
+    reason: str
+    member_name: str
+    member_phone: str
+    member_end_date: str
+    days_left: int | None
+    photo_path: str
 
 
 class GymDatabase:
@@ -39,7 +64,7 @@ class GymDatabase:
         self._create_tables()
 
     def _create_tables(self) -> None:
-        query = """
+        members_query = """
         CREATE TABLE IF NOT EXISTS members (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             full_name TEXT NOT NULL,
@@ -47,14 +72,47 @@ class GymDatabase:
             start_date TEXT NOT NULL,
             duration_months INTEGER NOT NULL DEFAULT 1,
             end_date TEXT NOT NULL,
-            notes TEXT DEFAULT ''
+            notes TEXT DEFAULT '',
+            card_id TEXT DEFAULT ''
         )
         """
-        self.conn.execute(query)
+        self.conn.execute(members_query)
+        self._ensure_column("members", "card_id", "TEXT DEFAULT ''")
+
+        checkins_query = """
+        CREATE TABLE IF NOT EXISTS checkins (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            member_id INTEGER,
+            card_id TEXT NOT NULL,
+            device_name TEXT NOT NULL,
+            checked_at TEXT NOT NULL,
+            result TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE SET NULL
+        )
+        """
+        self.conn.execute(checkins_query)
+        self._ensure_column("checkins", "member_id", "INTEGER")
+        self._ensure_column("checkins", "card_id", "TEXT NOT NULL DEFAULT ''")
+        self._ensure_column("checkins", "device_name", "TEXT NOT NULL DEFAULT 'ZKTeco K40'")
+        self._ensure_column("checkins", "checked_at", "TEXT NOT NULL DEFAULT ''")
+        self._ensure_column("checkins", "result", "TEXT NOT NULL DEFAULT 'UNKNOWN'")
+        self._ensure_column("checkins", "reason", "TEXT NOT NULL DEFAULT ''")
+
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_members_start_date ON members(start_date)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_members_card_id ON members(card_id)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_checkins_checked_at ON checkins(checked_at)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_checkins_member_id ON checkins(member_id)")
+
         self.conn.execute("DROP TABLE IF EXISTS payments")
         self.conn.execute("DROP TABLE IF EXISTS renewals")
         self.conn.commit()
+
+    def _ensure_column(self, table: str, column: str, definition: str) -> None:
+        info = self.conn.execute(f"PRAGMA table_info({table})").fetchall()
+        if any(row["name"] == column for row in info):
+            return
+        self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
     @staticmethod
     def _to_date(value: str) -> date:
@@ -81,12 +139,13 @@ class GymDatabase:
         days_left = (end - current).days
 
         if days_left < 0:
-            return "منتهي", days_left
+            return STATUS_EXPIRED, days_left
         if days_left <= 7:
-            return "قريب ينتهي", days_left
-        return "ساري", days_left
+            return STATUS_EXPIRING, days_left
+        return STATUS_ACTIVE, days_left
 
     def _row_to_member(self, row: sqlite3.Row) -> Member:
+        row_keys = set(row.keys())
         status, days_left = self.get_status(row["end_date"])
         return Member(
             id=row["id"],
@@ -96,8 +155,32 @@ class GymDatabase:
             duration_months=row["duration_months"],
             end_date=row["end_date"],
             notes=row["notes"] or "",
+            card_id=(row["card_id"] or "") if "card_id" in row_keys else "",
+            photo_path=(row["photo_path"] or "") if "photo_path" in row_keys else "",
             status=status,
             days_left=days_left,
+        )
+
+    def _row_to_checkin(self, row: sqlite3.Row) -> CheckinRecord:
+        end_date = row["member_end_date"] or ""
+        days_left: int | None = None
+        if end_date:
+            _, days_left = self.get_status(end_date)
+
+        row_keys = set(row.keys())
+        return CheckinRecord(
+            id=row["id"],
+            member_id=row["member_id"],
+            card_id=row["card_id"] or "",
+            device_name=row["device_name"] or "",
+            checked_at=row["checked_at"] or "",
+            result=row["result"] or "UNKNOWN",
+            reason=row["reason"] or "",
+            member_name=row["member_name"] or "",
+            member_phone=row["member_phone"] or "",
+            member_end_date=end_date,
+            days_left=days_left,
+            photo_path=(row["photo_path"] or "") if "photo_path" in row_keys else "",
         )
 
     def add_member(self, full_name: str, phone: str, start_date: str, duration_months: int = 1, notes: str = "") -> int:
@@ -140,6 +223,21 @@ class GymDatabase:
         row = self.conn.execute("SELECT * FROM members WHERE id = ?", (member_id,)).fetchone()
         return self._row_to_member(row) if row else None
 
+    def get_member_by_card_id(self, card_id: str) -> Member | None:
+        normalized = card_id.strip()
+        if not normalized:
+            return None
+        row = self.conn.execute("SELECT * FROM members WHERE card_id = ? LIMIT 1", (normalized,)).fetchone()
+        return self._row_to_member(row) if row else None
+
+    def link_card_to_member(self, member_id: int, card_id: str) -> None:
+        normalized = card_id.strip()
+        if not normalized:
+            raise ValueError("card_id cannot be empty")
+        self.conn.execute("UPDATE members SET card_id = '' WHERE card_id = ? AND id <> ?", (normalized, member_id))
+        self.conn.execute("UPDATE members SET card_id = ? WHERE id = ?", (normalized, member_id))
+        self.conn.commit()
+
     def get_all_members(self) -> list[Member]:
         rows = self.conn.execute("SELECT * FROM members ORDER BY id DESC").fetchall()
         return [self._row_to_member(row) for row in rows]
@@ -153,10 +251,10 @@ class GymDatabase:
         rows = self.conn.execute(
             """
             SELECT * FROM members
-            WHERE full_name LIKE ? OR phone LIKE ?
+            WHERE full_name LIKE ? OR phone LIKE ? OR card_id LIKE ?
             ORDER BY id DESC
             """,
-            (pattern, pattern),
+            (pattern, pattern, pattern),
         ).fetchall()
         return [self._row_to_member(row) for row in rows]
 
@@ -164,10 +262,10 @@ class GymDatabase:
         return [m for m in self.get_all_members() if m.status == status]
 
     def get_expired_members(self) -> list[Member]:
-        return self.get_members_by_status("منتهي")
+        return self.get_members_by_status(STATUS_EXPIRED)
 
     def get_ending_soon_members(self) -> list[Member]:
-        soon = self.get_members_by_status("قريب ينتهي")
+        soon = self.get_members_by_status(STATUS_EXPIRING)
         return sorted(soon, key=lambda member: member.days_left)
 
     def renew_subscription(self, member_id: int, months: int) -> str:
@@ -180,7 +278,7 @@ class GymDatabase:
         current_end = self._to_date(row["end_date"])
         status, _ = self.get_status(row["end_date"], today=today)
 
-        if status == "منتهي":
+        if status == STATUS_EXPIRED:
             new_start = today
             new_duration = months
         else:
@@ -189,7 +287,7 @@ class GymDatabase:
 
         new_end = self.add_months(new_start, months).strftime(DATE_FMT)
 
-        if status == "منتهي":
+        if status == STATUS_EXPIRED:
             self.conn.execute(
                 """
                 UPDATE members
@@ -211,11 +309,61 @@ class GymDatabase:
         self.conn.commit()
         return new_end
 
+    def record_checkin(
+        self,
+        member_id: int | None,
+        card_id: str,
+        device_name: str,
+        result: str,
+        reason: str,
+        checked_at: datetime | None = None,
+    ) -> int:
+        check_time = (checked_at or datetime.now()).strftime(DATETIME_FMT)
+        cursor = self.conn.execute(
+            """
+            INSERT INTO checkins (member_id, card_id, device_name, checked_at, result, reason)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                member_id,
+                card_id.strip(),
+                device_name.strip(),
+                check_time,
+                result.strip().upper(),
+                reason.strip(),
+            ),
+        )
+        self.conn.commit()
+        return int(cursor.lastrowid)
+
+    def get_recent_checkins(self, limit: int = 10) -> list[CheckinRecord]:
+        rows = self.conn.execute(
+            """
+            SELECT
+                c.id,
+                c.member_id,
+                c.card_id,
+                c.device_name,
+                c.checked_at,
+                c.result,
+                c.reason,
+                m.full_name AS member_name,
+                m.phone AS member_phone,
+                m.end_date AS member_end_date
+            FROM checkins c
+            LEFT JOIN members m ON m.id = c.member_id
+            ORDER BY c.id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        return [self._row_to_checkin(row) for row in rows]
+
     def get_counters(self) -> dict[str, int]:
         members = self.get_all_members()
-        expired = len([m for m in members if m.status == "منتهي"])
-        ending_soon = len([m for m in members if m.status == "قريب ينتهي"])
-        active = len([m for m in members if m.status == "ساري"])
+        expired = len([m for m in members if m.status == STATUS_EXPIRED])
+        ending_soon = len([m for m in members if m.status == STATUS_EXPIRING])
+        active = len([m for m in members if m.status == STATUS_ACTIVE])
         return {
             "expired": expired,
             "ending_soon": ending_soon,
@@ -229,6 +377,7 @@ class GymDatabase:
                 "ID": member.id,
                 "الاسم": member.full_name,
                 "الهاتف": member.phone,
+                "رقم البطاقة": member.card_id or "-",
                 "بداية الاشتراك": member.start_date,
                 "مدة الاشتراك (شهر)": member.duration_months,
                 "نهاية الاشتراك": member.end_date,

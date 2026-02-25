@@ -39,10 +39,12 @@ export function AppLayout({ children, search, setSearch, onAdd }: Props) {
               fullWidth
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="ابحث بالاسم أو الهاتف"
+              placeholder="ابحث بالاسم أو الهاتف أو رقم البطاقة"
               InputProps={{ startAdornment: <InputAdornment position="start"><SearchRounded /></InputAdornment> }}
             />
-            <Button variant="contained" startIcon={<AddRounded />} onClick={onAdd}>إضافة لاعب</Button>
+            <Button variant="contained" startIcon={<AddRounded />} onClick={onAdd}>
+              إضافة لاعب
+            </Button>
           </Box>
 
           <Box sx={{ minHeight: 0, flex: 1 }}>{children}</Box>
@@ -51,3 +53,4 @@ export function AppLayout({ children, search, setSearch, onAdd }: Props) {
     </Box>
   );
 }
+

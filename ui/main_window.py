@@ -6,10 +6,11 @@ from datetime import date
 from pathlib import Path
 
 from openpyxl import Workbook
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QDialog,
     QFileDialog,
@@ -32,8 +33,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from database import GymDatabase, Member
+from database import GymDatabase, Member, STATUS_ACTIVE, STATUS_EXPIRED, STATUS_EXPIRING
+from services.device_settings import DeviceSettings, DeviceSettingsStore
+from services.k40_access_service import CheckinEvent, K40AccessService
+from services.zk_k40_listener import K40LogEvent
 from ui.dashboard_page import DashboardWidget
+from ui.gate_kiosk_page import GateKioskWidget
 from ui.member_dialog import MemberDialog
 from ui.services.dashboard_service import DashboardService
 from ui.widgets import AnimatedButton, Sidebar
@@ -89,6 +94,7 @@ class MainWindow(QMainWindow):
         "نهاية الاشتراك",
         "الحالة",
         "المتبقي",
+        "رقم البطاقة",
         "ملاحظات",
         "إجراءات",
     ]
@@ -97,6 +103,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.db = GymDatabase("gym.db")
         self.dashboard_service = DashboardService(self.db)
+        self.device_settings_store = DeviceSettingsStore("config/device_settings.json")
+        self.k40_service = K40AccessService(self.db, self.device_settings_store, self)
 
         self.setWindowTitle("Gym Manager")
         self.resize(1460, 900)
@@ -107,12 +115,12 @@ class MainWindow(QMainWindow):
         self.pages = QStackedWidget()
 
         self.search_edit = QLineEdit(objectName="searchInput")
-        self.search_edit.setPlaceholderText("ابحث بالاسم أو الهاتف...")
+        self.search_edit.setPlaceholderText("ابحث بالاسم أو الهاتف أو رقم البطاقة...")
         self.search_edit.addAction(self.style().standardIcon(QStyle.SP_FileDialogContentsView), QLineEdit.LeadingPosition)
 
         self.add_member_btn = AnimatedButton("+ إضافة لاعب")
         self.status_filter_combo = QComboBox()
-        self.status_filter_combo.addItems(["الكل", "ساري", "قريب ينتهي", "منتهي"])
+        self.status_filter_combo.addItems(["الكل", STATUS_ACTIVE, STATUS_EXPIRING, STATUS_EXPIRED])
 
         self.all_table = self._build_member_table()
         self.soon_table = self._build_member_table()
@@ -125,10 +133,14 @@ class MainWindow(QMainWindow):
             on_open_active=lambda: self.switch_page("all"),
             on_open_expired=lambda: self.switch_page("expired"),
         )
+        self.gate_widget = GateKioskWidget()
 
         self._build_ui()
         self._connect_signals()
+        self._load_device_settings_to_form()
         self.refresh_all_data()
+        self.gate_widget.update_recent_checkins(self.k40_service.get_recent_checkins(10))
+        self.k40_service.start()
 
     def _build_ui(self) -> None:
         root = QWidget(objectName="appRoot")
@@ -167,6 +179,7 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(self._all_page())
         self.pages.addWidget(self._soon_page())
         self.pages.addWidget(self._expired_page())
+        self.pages.addWidget(self.gate_widget)
         self.pages.addWidget(self._settings_page())
         return self.pages
 
@@ -217,14 +230,14 @@ class MainWindow(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
 
-        panel = QFrame(objectName="sectionPanel")
-        panel_layout = QVBoxLayout(panel)
-        panel_layout.setContentsMargins(16, 16, 16, 16)
-        panel_layout.setSpacing(10)
-
-        panel_layout.addWidget(QLabel("الإعدادات", objectName="sectionTitle"))
-        panel_layout.addWidget(QLabel("إدارة التصدير والنسخ الاحتياطي.", objectName="mutedText"))
+        data_panel = QFrame(objectName="sectionPanel")
+        data_layout = QVBoxLayout(data_panel)
+        data_layout.setContentsMargins(16, 16, 16, 16)
+        data_layout.setSpacing(10)
+        data_layout.addWidget(QLabel("الإعدادات العامة", objectName="sectionTitle"))
+        data_layout.addWidget(QLabel("إدارة التصدير والنسخ الاحتياطي.", objectName="mutedText"))
 
         row = QHBoxLayout()
         self.settings_export_btn = QPushButton("تصدير البيانات")
@@ -236,9 +249,48 @@ class MainWindow(QMainWindow):
         row.addWidget(self.settings_export_btn)
         row.addWidget(self.settings_backup_btn)
         row.addStretch()
-        panel_layout.addLayout(row)
+        data_layout.addLayout(row)
 
-        layout.addWidget(panel)
+        device_panel = QFrame(objectName="sectionPanel")
+        device_layout = QVBoxLayout(device_panel)
+        device_layout.setContentsMargins(16, 16, 16, 16)
+        device_layout.setSpacing(10)
+        device_layout.addWidget(QLabel("Device Settings", objectName="sectionTitle"))
+        device_layout.addWidget(QLabel("ZKTeco K40 (TCP/IP)", objectName="mutedText"))
+
+        form = QFormLayout()
+        form.setLabelAlignment(Qt.AlignRight)
+        form.setHorizontalSpacing(14)
+        form.setVerticalSpacing(10)
+
+        self.device_ip_edit = QLineEdit()
+        self.device_ip_edit.setPlaceholderText("مثال: 192.168.1.201")
+
+        self.device_port_spin = QSpinBox()
+        self.device_port_spin.setRange(1, 65535)
+        self.device_port_spin.setValue(4370)
+
+        self.device_name_edit = QLineEdit("ZKTeco K40")
+        self.enable_device_listener_checkbox = QCheckBox("تفعيل الاستماع للجهاز")
+
+        form.addRow("device_ip:", self.device_ip_edit)
+        form.addRow("device_port:", self.device_port_spin)
+        form.addRow("device_name:", self.device_name_edit)
+        form.addRow("", self.enable_device_listener_checkbox)
+        device_layout.addLayout(form)
+
+        actions = QHBoxLayout()
+        self.save_device_settings_btn = QPushButton("حفظ إعدادات الجهاز")
+        self.save_device_settings_btn.setObjectName("btnGhost")
+        self.listener_state_label = QLabel("-")
+        self.listener_state_label.setObjectName("mutedText")
+        actions.addWidget(self.save_device_settings_btn)
+        actions.addStretch()
+        actions.addWidget(self.listener_state_label)
+        device_layout.addLayout(actions)
+
+        layout.addWidget(data_panel)
+        layout.addWidget(device_panel)
         layout.addStretch()
         return page
 
@@ -274,28 +326,34 @@ class MainWindow(QMainWindow):
         self.backup_btn.clicked.connect(self.backup_database)
         self.settings_export_btn.clicked.connect(self.export_excel)
         self.settings_backup_btn.clicked.connect(self.backup_database)
+        self.save_device_settings_btn.clicked.connect(self.save_device_settings)
+
+        self.k40_service.checkin_processed.connect(self._on_checkin_processed)
+        self.k40_service.recent_checkins_changed.connect(self.gate_widget.update_recent_checkins)
+        self.k40_service.listener_state_changed.connect(self._on_listener_state_changed)
+        self.k40_service.listener_error.connect(self._on_listener_error)
 
     @staticmethod
     def _status_from_days(days_left: int) -> str:
         if days_left < 0:
-            return "منتهي"
+            return STATUS_EXPIRED
         if days_left <= 7:
-            return "قريب ينتهي"
-        return "ساري"
+            return STATUS_EXPIRING
+        return STATUS_ACTIVE
 
     @staticmethod
     def _status_color(status: str) -> QColor:
-        if status == "منتهي":
+        if status == STATUS_EXPIRED:
             return QColor("#dc2626")
-        if status == "قريب ينتهي":
+        if status == STATUS_EXPIRING:
             return QColor("#f59e0b")
         return QColor("#16a34a")
 
     @staticmethod
     def _status_bg(status: str) -> QColor:
-        if status == "منتهي":
+        if status == STATUS_EXPIRED:
             return QColor("#fef2f2")
-        if status == "قريب ينتهي":
+        if status == STATUS_EXPIRING:
             return QColor("#fff7ed")
         return QColor("#f0fdf4")
 
@@ -346,13 +404,14 @@ class MainWindow(QMainWindow):
                 member.end_date,
                 status,
                 str(member.days_left),
+                member.card_id or "-",
                 member.notes,
             ]
 
             for col, value in enumerate(values):
                 item = QTableWidgetItem(value)
                 item.setTextAlignment(Qt.AlignCenter)
-                if col in (1, 8):
+                if col in (1, 9):
                     item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 if col == 6:
                     item.setForeground(status_fg)
@@ -361,7 +420,7 @@ class MainWindow(QMainWindow):
                 item.setBackground(row_bg)
                 table.setItem(row, col, item)
 
-            table.setCellWidget(row, 9, self._build_actions_cell(member.id, member.full_name))
+            table.setCellWidget(row, 10, self._build_actions_cell(member.id, member.full_name))
 
         table.resizeColumnsToContents()
 
@@ -389,7 +448,8 @@ class MainWindow(QMainWindow):
             "all": 1,
             "soon": 2,
             "expired": 3,
-            "settings": 4,
+            "gate": 4,
+            "settings": 5,
         }
         self.pages.setCurrentIndex(page_map.get(key, 0))
         self.sidebar.set_active(key)
@@ -409,7 +469,12 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "خطأ", "تعذر العثور على بيانات اللاعب.")
             return
 
-        dialog = MemberDialog(self.db, member=member, parent=self)
+        dialog = MemberDialog(
+            self.db,
+            member=member,
+            parent=self,
+            on_bind_card=self.enroll_member_card,
+        )
         if dialog.exec():
             self.refresh_all_data()
             self._show_toast("تم تعديل بيانات اللاعب")
@@ -460,6 +525,136 @@ class MainWindow(QMainWindow):
             if trigger_btn is not None:
                 trigger_btn.setEnabled(True)
 
+    def _load_device_settings_to_form(self) -> None:
+        settings = self.k40_service.get_settings()
+        self.device_ip_edit.setText(settings.device_ip)
+        self.device_port_spin.setValue(settings.device_port)
+        self.device_name_edit.setText(settings.device_name)
+        self.enable_device_listener_checkbox.setChecked(settings.enable_device_listener)
+        self._render_listener_state(False, "not-started")
+
+    def save_device_settings(self) -> None:
+        next_settings = DeviceSettings(
+            device_ip=self.device_ip_edit.text().strip(),
+            device_port=int(self.device_port_spin.value()),
+            device_name=self.device_name_edit.text().strip() or "ZKTeco K40",
+            enable_device_listener=self.enable_device_listener_checkbox.isChecked(),
+        )
+        saved = self.k40_service.update_settings(next_settings)
+        self.device_ip_edit.setText(saved.device_ip)
+        self.device_port_spin.setValue(saved.device_port)
+        self.device_name_edit.setText(saved.device_name)
+        self.enable_device_listener_checkbox.setChecked(saved.enable_device_listener)
+        self._show_toast("تم حفظ إعدادات الجهاز")
+
+    def _on_listener_error(self, message: str) -> None:
+        self._show_toast(message)
+
+    def _on_listener_state_changed(self, connected: bool, state: str) -> None:
+        self._render_listener_state(connected, state)
+
+    def _render_listener_state(self, connected: bool, state: str) -> None:
+        if connected:
+            self.listener_state_label.setText(f"حالة الجهاز: متصل ({state})")
+            self.listener_state_label.setStyleSheet("color: #16a34a;")
+            return
+
+        if state == "disabled":
+            text = "حالة الجهاز: معطل من الإعدادات"
+        elif state == "missing-ip":
+            text = "حالة الجهاز: أدخل device_ip للاتصال"
+        elif state == "reconnecting":
+            text = "حالة الجهاز: إعادة محاولة الاتصال..."
+        elif state == "stopped":
+            text = "حالة الجهاز: متوقف"
+        else:
+            text = "حالة الجهاز: غير متصل"
+
+        self.listener_state_label.setText(text)
+        self.listener_state_label.setStyleSheet("color: #b45309;")
+
+    def _on_checkin_processed(self, event: CheckinEvent) -> None:
+        self.gate_widget.show_checkin(event)
+        self.switch_page("gate")
+
+        if event.result == "ALLOW":
+            QApplication.beep()
+        elif event.result == "DENY":
+            QApplication.beep()
+            QTimer.singleShot(170, QApplication.beep)
+
+        self._show_toast(f"{event.result} - {event.reason} - {event.card_id}")
+
+    def enroll_member_card(self, member_id: int) -> str | None:
+        settings = self.k40_service.get_settings()
+        if not settings.enable_device_listener:
+            QMessageBox.warning(self, "تعذر الربط", "ميزة الاستماع للجهاز معطلة من الإعدادات.")
+            return None
+
+        card_id = self._wait_for_next_card()
+        if not card_id:
+            QMessageBox.information(self, "انتهت المهلة", "لم يتم التقاط بطاقة خلال 10 ثوانٍ.")
+            return None
+
+        self.db.link_card_to_member(member_id, card_id)
+        self.refresh_all_data()
+        self._show_toast(f"تم ربط البطاقة: {card_id}")
+        return card_id
+
+    def _wait_for_next_card(self) -> str | None:
+        captured: dict[str, str] = {"card_id": ""}
+        remaining = {"seconds": 10}
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("ربط بطاقة")
+        dialog.setLayoutDirection(Qt.RightToLeft)
+        dialog.setMinimumWidth(420)
+
+        message = QLabel("")
+        message.setWordWrap(True)
+        message.setAlignment(Qt.AlignRight)
+
+        cancel_btn = QPushButton("إلغاء")
+        cancel_btn.setObjectName("btnGhost")
+        cancel_btn.clicked.connect(dialog.reject)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+        layout.addWidget(message)
+        layout.addWidget(cancel_btn, 0, Qt.AlignLeft)
+
+        def refresh_message() -> None:
+            message.setText(f"مرّر البطاقة على الجهاز الآن خلال {remaining['seconds']} ثوانٍ.")
+
+        def on_tick() -> None:
+            remaining["seconds"] -= 1
+            if remaining["seconds"] <= 0:
+                dialog.reject()
+                return
+            refresh_message()
+
+        def on_raw_event(event: K40LogEvent) -> None:
+            captured["card_id"] = event.card_id
+            dialog.accept()
+
+        timer = QTimer(dialog)
+        timer.setInterval(1000)
+        timer.timeout.connect(on_tick)
+
+        refresh_message()
+        self.k40_service.raw_event.connect(on_raw_event)
+        timer.start()
+        dialog.exec()
+        timer.stop()
+
+        try:
+            self.k40_service.raw_event.disconnect(on_raw_event)
+        except (RuntimeError, TypeError):
+            pass
+
+        return captured["card_id"] or None
+
     def export_excel(self) -> None:
         rows = self.db.export_rows()
         if not rows:
@@ -501,5 +696,7 @@ class MainWindow(QMainWindow):
         self._show_toast("تم إنشاء النسخة الاحتياطية")
 
     def closeEvent(self, event) -> None:  # noqa: N802
+        self.k40_service.stop()
         self.db.close()
         super().closeEvent(event)
+

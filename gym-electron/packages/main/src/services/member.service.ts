@@ -5,6 +5,7 @@ import type { MemberDTO, MemberPayload, MembersQuery, RenewalPayload } from '@gy
 import { prisma } from '../db/client';
 import { statusFromDate } from '../utils/date';
 import { getSettings } from './settings.service';
+import { renewMemberSubscription } from './subscription.service';
 
 function toDTO(member: any, soonDays: number): MemberDTO {
   const { status, daysLeft } = statusFromDate(member.endDate, soonDays);
@@ -16,6 +17,8 @@ function toDTO(member: any, soonDays: number): MemberDTO {
     durationMonths: member.durationMonths,
     endDate: formatISO(member.endDate, { representation: 'date' }),
     notes: member.notes,
+    cardId: member.cardId ?? '',
+    photoPath: member.photoPath ?? '',
     planId: member.planId,
     planName: member.plan?.name ?? null,
     status,
@@ -25,9 +28,13 @@ function toDTO(member: any, soonDays: number): MemberDTO {
 
 export async function listMembers(query: MembersQuery = {}): Promise<MemberDTO[]> {
   const settings = await getSettings();
-  const where = query.search
+  const where: any = query.search
     ? {
-        OR: [{ fullName: { contains: query.search } }, { phone: { contains: query.search } }],
+        OR: [
+          { fullName: { contains: query.search } },
+          { phone: { contains: query.search } },
+          { cardId: { contains: query.search } },
+        ],
       }
     : {};
 
@@ -98,30 +105,7 @@ export async function deleteMember(id: number): Promise<void> {
 
 export async function renewMember(payload: RenewalPayload): Promise<MemberDTO> {
   const settings = await getSettings();
-  const existing = await prisma.member.findUnique({
-    where: { id: payload.memberId },
-    include: { plan: true },
-  });
-
-  if (!existing) throw new Error('Member not found');
-
-  const now = new Date();
-  const { status } = statusFromDate(existing.endDate, settings.expiringSoonDays);
-  const isExpired = status === 'Expired';
-
-  const baseDate = isExpired ? now : existing.endDate;
-  const newEndDate = addMonths(baseDate, payload.months);
-  const nextDurationMonths = isExpired ? payload.months : existing.durationMonths + payload.months;
-
-  const row = await prisma.member.update({
-    where: { id: payload.memberId },
-    data: {
-      startDate: isExpired ? now : existing.startDate,
-      endDate: newEndDate,
-      durationMonths: nextDurationMonths,
-    },
-    include: { plan: true },
-  });
+  const row = await renewMemberSubscription(payload);
 
   return toDTO(row, settings.expiringSoonDays);
 }

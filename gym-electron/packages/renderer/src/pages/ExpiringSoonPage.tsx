@@ -3,13 +3,14 @@ import { useEffect, useState } from 'react';
 import EditRounded from '@mui/icons-material/EditRounded';
 import SyncRounded from '@mui/icons-material/SyncRounded';
 import { IconButton, Paper, Stack } from '@mui/material';
-import { DataGrid, GridColDef } from '@mui/x-data-grid';
+import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 
 import type { MemberDTO, MemberPayload } from '@gym/shared';
 
 import { MemberDialog } from '../components/MemberDialog';
 import { RenewMemberDialog } from '../components/RenewMemberDialog';
+import { enrollCardWithConflictResolution } from '../lib/card-enrollment';
 import { useGymStore } from '../store/useGymStore';
 
 interface Props {
@@ -32,6 +33,7 @@ export function ExpiringSoonPage({ search }: Props) {
     { field: 'id', headerName: 'ID', width: 80 },
     { field: 'fullName', headerName: 'الاسم', flex: 1 },
     { field: 'phone', headerName: 'الهاتف', width: 150 },
+    { field: 'cardId', headerName: 'البطاقة', width: 160 },
     { field: 'endDate', headerName: 'تاريخ النهاية', width: 150 },
     { field: 'daysLeft', headerName: 'متبقي (يوم)', width: 130 },
     {
@@ -78,6 +80,14 @@ export function ExpiringSoonPage({ search }: Props) {
     }
   };
 
+  const bindCard = async (memberId: number): Promise<string> => {
+    const cardId = await enrollCardWithConflictResolution(memberId);
+    await loadMembers({ search, status: 'ExpiringSoon' });
+    await loadDashboard();
+    enqueueSnackbar(`تم ربط البطاقة: ${cardId}`, { variant: 'success' });
+    return cardId;
+  };
+
   return (
     <Paper sx={{ p: 2, borderRadius: 3, height: '100%' }}>
       <DataGrid rows={[...members].sort((a, b) => a.daysLeft - b.daysLeft)} columns={cols} pageSizeOptions={[10, 25]} />
@@ -96,6 +106,7 @@ export function ExpiringSoonPage({ search }: Props) {
           await loadDashboard();
           enqueueSnackbar('تم تعديل بيانات اللاعب', { variant: 'success' });
         }}
+        onBindCard={editing ? bindCard : undefined}
       />
 
       <RenewMemberDialog

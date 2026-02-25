@@ -1,6 +1,9 @@
 import type {
   AppSettings,
+  CheckinDTO,
   DashboardDTO,
+  EnrollCardResultDTO,
+  K40ListenerStateDTO,
   MemberDTO,
   MemberPayload,
   MembersQuery,
@@ -22,6 +25,14 @@ declare global {
       settings: {
         get: () => Promise<AppSettings>;
         update: (payload: Partial<AppSettings>) => Promise<AppSettings>;
+      };
+      k40: {
+        state: () => Promise<K40ListenerStateDTO>;
+        recent: (limit?: number) => Promise<CheckinDTO[]>;
+        enrollCard: (memberId: number, timeoutSeconds?: number) => Promise<EnrollCardResultDTO>;
+        assignCard: (memberId: number, cardId: string, forceTransfer?: boolean) => Promise<EnrollCardResultDTO>;
+        onEvent: (handler: (event: CheckinDTO) => void) => () => void;
+        onState: (handler: (state: K40ListenerStateDTO) => void) => () => void;
       };
       exportExcel: () => Promise<string | null>;
       exportPdf: () => Promise<string | null>;

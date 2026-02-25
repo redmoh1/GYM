@@ -6,7 +6,7 @@ import ErrorRounded from '@mui/icons-material/ErrorRounded';
 import SyncRounded from '@mui/icons-material/SyncRounded';
 import WarningAmberRounded from '@mui/icons-material/WarningAmberRounded';
 import { Alert, Button, Chip, IconButton, Paper, Stack, Typography } from '@mui/material';
-import { DataGrid, GridColDef } from '@mui/x-data-grid';
+import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { useNavigate } from 'react-router-dom';
 
@@ -15,6 +15,7 @@ import type { MemberDTO, MemberPayload } from '@gym/shared';
 import { CardWidget } from '../components/CardWidget';
 import { MemberDialog } from '../components/MemberDialog';
 import { RenewMemberDialog } from '../components/RenewMemberDialog';
+import { enrollCardWithConflictResolution } from '../lib/card-enrollment';
 import { useGymStore } from '../store/useGymStore';
 
 interface Props {
@@ -40,7 +41,7 @@ export function DashboardPage({ search = '' }: Props) {
     const q = search.trim().toLowerCase();
     const rows = [...dashboard.nearestExpiring].sort((a, b) => a.daysLeft - b.daysLeft);
     if (!q) return rows;
-    return rows.filter((m) => m.fullName.toLowerCase().includes(q) || m.phone.includes(q));
+    return rows.filter((m) => m.fullName.toLowerCase().includes(q) || m.phone.includes(q) || m.cardId.includes(q));
   }, [dashboard, search]);
 
   const cols: GridColDef[] = [
@@ -108,6 +109,13 @@ export function DashboardPage({ search = '' }: Props) {
     }
   };
 
+  const bindCard = async (memberId: number): Promise<string> => {
+    const cardId = await enrollCardWithConflictResolution(memberId);
+    await loadDashboard();
+    enqueueSnackbar(`تم ربط البطاقة: ${cardId}`, { variant: 'success' });
+    return cardId;
+  };
+
   if (!dashboard) return null;
 
   return (
@@ -150,7 +158,9 @@ export function DashboardPage({ search = '' }: Props) {
       )}
 
       <Paper sx={{ p: 2, borderRadius: 3, minHeight: 460 }}>
-        <Typography fontWeight={800} mb={1.5}>أقرب 10 اشتراكات تنتهي</Typography>
+        <Typography fontWeight={800} mb={1.5}>
+          أقرب 10 اشتراكات تنتهي
+        </Typography>
         <DataGrid
           rows={nearestRows}
           columns={cols}
@@ -178,6 +188,7 @@ export function DashboardPage({ search = '' }: Props) {
           await updateMember(editing.id, payload);
           await loadDashboard();
         }}
+        onBindCard={editing ? bindCard : undefined}
       />
 
       <RenewMemberDialog

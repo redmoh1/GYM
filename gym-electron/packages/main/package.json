@@ -19,7 +19,8 @@
     "electron-log": "^5.2.4",
     "fs-extra": "^11.3.0",
     "pdfkit": "^0.17.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zkteco-terminal": "latest"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",

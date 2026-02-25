@@ -15,15 +15,19 @@ model Member {
   durationMonths Int       @default(1)
   endDate        DateTime
   notes          String    @default("")
+  cardId         String    @default("")
+  photoPath      String    @default("")
   planId         Int?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   plan     Plan?     @relation(fields: [planId], references: [id])
   payments Payment[]
+  checkins Checkin[]
 
   @@index([fullName])
   @@index([phone])
+  @@index([cardId])
   @@index([endDate])
 }
 
@@ -58,4 +62,20 @@ model Setting {
   id    Int    @id @default(autoincrement())
   key   String @unique
   value String
+}
+
+model Checkin {
+  id         Int      @id @default(autoincrement())
+  memberId   Int?
+  cardId     String
+  deviceName String
+  checkedAt  DateTime @default(now())
+  result     String
+  reason     String
+
+  member Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@index([checkedAt])
+  @@index([memberId])
+  @@index([cardId])
 }

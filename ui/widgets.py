@@ -138,6 +138,7 @@ class Sidebar(QWidget):
             SidebarItem("all", "جميع اللاعبين", QStyle.SP_FileDialogListView),
             SidebarItem("soon", "قريب ينتهي", QStyle.SP_BrowserReload),
             SidebarItem("expired", "المنتهين", QStyle.SP_MessageBoxWarning),
+            SidebarItem("gate", "Gate / Kiosk", QStyle.SP_DialogYesButton),
             SidebarItem("settings", "الإعدادات", QStyle.SP_FileDialogDetailedView),
         ]
 
@@ -162,7 +163,7 @@ class Sidebar(QWidget):
         layout.addStretch()
 
         self._buttons["dashboard"].setChecked(True)
-        footer = QLabel("v1.0")
+        footer = QLabel("v1.1")
         footer.setObjectName("mutedText")
         footer.setAlignment(Qt.AlignCenter)
         footer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
@@ -171,3 +172,4 @@ class Sidebar(QWidget):
     def set_active(self, key: str) -> None:
         if key in self._buttons:
             self._buttons[key].setChecked(True)
+

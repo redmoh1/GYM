@@ -6,9 +6,11 @@ import chokidar, { FSWatcher } from 'chokidar';
 import { app, BrowserWindow, Menu, Notification, globalShortcut, ipcMain } from 'electron';
 import log from 'electron-log';
 
+import { ensureRuntimeSchema } from './db/client';
 import { registerIpcHandlers } from './ipc/handlers';
 import { getDashboard } from './services/dashboard.service';
 import { createAutoBackupOnExit } from './services/file.service';
+import { k40AccessService } from './services/k40-access.service';
 
 const DEFAULT_BACKEND_PORT = '5050';
 const DEFAULT_BACKEND_ENTRY = 'main.py';
@@ -20,6 +22,14 @@ let backendProcess: ChildProcess | null = null;
 let backendWatcher: FSWatcher | null = null;
 let backendRestartTimer: NodeJS.Timeout | null = null;
 let isQuitting = false;
+
+k40AccessService.onCheckin((event) => {
+  mainWindow?.webContents.send('k40:event', event);
+});
+
+k40AccessService.onState((state) => {
+  mainWindow?.webContents.send('k40:state', state);
+});
 
 function resolveRendererUrl(): string {
   return 'http://localhost:5190';
@@ -346,7 +356,9 @@ app.whenReady().then(async () => {
   log.initialize();
   log.info('Application started');
 
+  await ensureRuntimeSchema();
   startBackendProcess();
+  await k40AccessService.start();
 
   Menu.setApplicationMenu(null);
   registerIpcHandlers();
@@ -364,6 +376,7 @@ app.whenReady().then(async () => {
 app.on('before-quit', () => {
   void (async () => {
     if (process.env.SKIP_AUTO_BACKUP_ON_QUIT === '1') {
+      await k40AccessService.stop();
       await shutdownBackendManager();
       return;
     }
@@ -373,6 +386,7 @@ app.on('before-quit', () => {
     } catch (error) {
       log.error(`Auto backup failed on exit: ${String(error)}`);
     }
+    await k40AccessService.stop();
     await shutdownBackendManager();
   })();
 });

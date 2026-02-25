@@ -8,6 +8,8 @@ export interface MemberDTO {
   durationMonths: number;
   endDate: string;
   notes: string;
+  cardId: string;
+  photoPath: string;
   planId: number | null;
   planName: string | null;
   status: SubscriptionStatus;
@@ -51,6 +53,10 @@ export interface AppSettings {
   expiringSoonDays: number;
   currency: string;
   gymName: string;
+  deviceIp: string;
+  devicePort: number;
+  deviceName: string;
+  enableDeviceListener: boolean;
 }
 
 export interface PlanDTO {
@@ -58,4 +64,39 @@ export interface PlanDTO {
   name: string;
   months: number;
   price: number;
+}
+
+export type CheckinResult = 'ALLOW' | 'DENY' | 'UNKNOWN';
+
+export interface CheckinDTO {
+  id: number;
+  memberId: number | null;
+  memberName: string;
+  memberPhone: string;
+  memberEndDate: string | null;
+  daysLeft: number | null;
+  photoPath: string;
+  cardId: string;
+  deviceName: string;
+  checkedAt: string;
+  result: CheckinResult;
+  reason: string;
+}
+
+export interface K40ListenerStateDTO {
+  connected: boolean;
+  status: string;
+  enabled: boolean;
+  deviceIp: string;
+  devicePort: number;
+  deviceName: string;
+  lastError: string | null;
+}
+
+export interface EnrollCardResultDTO {
+  status: 'BOUND' | 'CONFLICT';
+  cardId: string;
+  memberId: number;
+  currentOwnerMemberId: number | null;
+  currentOwnerName: string | null;
 }

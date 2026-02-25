@@ -2,7 +2,10 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 import type {
   AppSettings,
+  CheckinDTO,
   DashboardDTO,
+  EnrollCardResultDTO,
+  K40ListenerStateDTO,
   MemberDTO,
   MemberPayload,
   MembersQuery,
@@ -26,6 +29,24 @@ const api = {
     get: () => ipcRenderer.invoke('settings:get') as Promise<AppSettings>,
     update: (payload: Partial<AppSettings>) =>
       ipcRenderer.invoke('settings:update', payload) as Promise<AppSettings>,
+  },
+  k40: {
+    state: () => ipcRenderer.invoke('k40:state') as Promise<K40ListenerStateDTO>,
+    recent: (limit = 10) => ipcRenderer.invoke('k40:recent', limit) as Promise<CheckinDTO[]>,
+    enrollCard: (memberId: number, timeoutSeconds = 10) =>
+      ipcRenderer.invoke('k40:enroll-card', memberId, timeoutSeconds) as Promise<EnrollCardResultDTO>,
+    assignCard: (memberId: number, cardId: string, forceTransfer = false) =>
+      ipcRenderer.invoke('k40:assign-card', memberId, cardId, forceTransfer) as Promise<EnrollCardResultDTO>,
+    onEvent: (handler: (event: CheckinDTO) => void) => {
+      const listener = (_: unknown, payload: CheckinDTO) => handler(payload);
+      ipcRenderer.on('k40:event', listener);
+      return () => ipcRenderer.removeListener('k40:event', listener);
+    },
+    onState: (handler: (state: K40ListenerStateDTO) => void) => {
+      const listener = (_: unknown, payload: K40ListenerStateDTO) => handler(payload);
+      ipcRenderer.on('k40:state', listener);
+      return () => ipcRenderer.removeListener('k40:state', listener);
+    },
   },
   exportExcel: () => ipcRenderer.invoke('export:excel') as Promise<string | null>,
   exportPdf: () => ipcRenderer.invoke('export:pdf') as Promise<string | null>,

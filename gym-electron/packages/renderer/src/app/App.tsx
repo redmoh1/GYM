@@ -4,15 +4,18 @@ import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';
 import { Box, CssBaseline, ThemeProvider } from '@mui/material';
 import { SnackbarProvider, useSnackbar } from 'notistack';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { prefixer } from 'stylis';
 import rtlPlugin from 'stylis-plugin-rtl';
 
 import { AppLayout } from '../components/AppLayout';
 import { MemberDialog } from '../components/MemberDialog';
+import { playCheckinTone } from '../lib/sound';
 import { DashboardPage } from '../pages/DashboardPage';
 import { ExpiredPage } from '../pages/ExpiredPage';
 import { ExpiringSoonPage } from '../pages/ExpiringSoonPage';
+import { GateKioskPage } from '../pages/GateKioskPage';
+import { MemberProfilePage } from '../pages/MemberProfilePage';
 import { MembersPage } from '../pages/MembersPage';
 import { SettingsPage } from '../pages/SettingsPage';
 import { useGymStore } from '../store/useGymStore';
@@ -21,11 +24,13 @@ import { theme } from '../styles/theme';
 const cacheRtl = createCache({ key: 'muirtl', stylisPlugins: [prefixer, rtlPlugin] });
 
 function AppShell() {
+  const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const { createMember, loadDashboard, dashboard } = useGymStore();
   const [search, setSearch] = useState('');
   const [openAdd, setOpenAdd] = useState(false);
   const startupAlertShownRef = useRef(false);
+  const listenerErrorRef = useRef<string>('');
 
   useEffect(() => {
     void loadDashboard();
@@ -52,6 +57,27 @@ function AppShell() {
   }, [enqueueSnackbar]);
 
   useEffect(() => {
+    const unsubscribeEvent = window.api.k40.onEvent((event) => {
+      navigate('/gate');
+      const variant = event.result === 'ALLOW' ? 'success' : event.result === 'DENY' ? 'error' : 'warning';
+      enqueueSnackbar(`${event.result} - ${event.reason} - ${event.cardId}`, { variant });
+      playCheckinTone(event.result);
+    });
+
+    const unsubscribeState = window.api.k40.onState((state) => {
+      if (!state.lastError) return;
+      if (listenerErrorRef.current === state.lastError) return;
+      listenerErrorRef.current = state.lastError;
+      enqueueSnackbar(state.lastError, { variant: 'error' });
+    });
+
+    return () => {
+      unsubscribeEvent();
+      unsubscribeState();
+    };
+  }, [enqueueSnackbar, navigate]);
+
+  useEffect(() => {
     const onError = (event: ErrorEvent) => {
       void window.api.writeLog(`RendererError: ${event.message}`);
     };
@@ -74,6 +100,8 @@ function AppShell() {
         <Route path="/members" element={<MembersPage search={search} />} />
         <Route path="/expiring" element={<ExpiringSoonPage search={search} />} />
         <Route path="/expired" element={<ExpiredPage search={search} />} />
+        <Route path="/gate" element={<GateKioskPage />} />
+        <Route path="/member/:id" element={<MemberProfilePage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Routes>
 

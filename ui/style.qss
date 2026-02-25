@@ -283,3 +283,22 @@ QFrame#dashboardAlert {
     border: 1px solid #BFDBFE;
     border-radius: 12px;
 }
+
+/* Gate / Kiosk */
+QLabel#gateAvatar {
+    background: #F8FAFC;
+    border: 1px dashed #CBD5E1;
+    border-radius: 14px;
+    color: #64748B;
+    font-weight: 700;
+}
+
+QLabel#gateStatus {
+    border: 1px solid #94A3B8;
+    background: #F1F5F9;
+    color: #334155;
+    border-radius: 12px;
+    font-size: 24px;
+    font-weight: 800;
+    padding: 10px;
+}

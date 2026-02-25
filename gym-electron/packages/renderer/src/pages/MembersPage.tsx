@@ -6,7 +6,7 @@ import PictureAsPdfRounded from '@mui/icons-material/PictureAsPdfRounded';
 import SaveAltRounded from '@mui/icons-material/SaveAltRounded';
 import SyncRounded from '@mui/icons-material/SyncRounded';
 import { Box, IconButton, MenuItem, Paper, Select, Stack } from '@mui/material';
-import { DataGrid, GridColDef } from '@mui/x-data-grid';
+import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 
 import type { MemberDTO } from '@gym/shared';
@@ -14,6 +14,7 @@ import type { MemberDTO } from '@gym/shared';
 import { MemberDialog } from '../components/MemberDialog';
 import { RenewMemberDialog } from '../components/RenewMemberDialog';
 import { api } from '../lib/api';
+import { enrollCardWithConflictResolution } from '../lib/card-enrollment';
 import { useGymStore } from '../store/useGymStore';
 
 interface Props {
@@ -40,6 +41,7 @@ export function MembersPage({ search }: Props) {
     { field: 'id', headerName: 'ID', width: 80 },
     { field: 'fullName', headerName: 'الاسم', flex: 1, minWidth: 180 },
     { field: 'phone', headerName: 'الهاتف', width: 140 },
+    { field: 'cardId', headerName: 'رقم البطاقة', width: 160 },
     { field: 'startDate', headerName: 'البداية', width: 120 },
     { field: 'endDate', headerName: 'النهاية', width: 120 },
     { field: 'status', headerName: 'الحالة', width: 140 },
@@ -101,6 +103,14 @@ export function MembersPage({ search }: Props) {
     }
   };
 
+  const bindCard = async (memberId: number): Promise<string> => {
+    const cardId = await enrollCardWithConflictResolution(memberId);
+    await loadMembers({ search, status });
+    await loadDashboard();
+    enqueueSnackbar(`تم ربط البطاقة: ${cardId}`, { variant: 'success' });
+    return cardId;
+  };
+
   return (
     <Paper sx={{ p: 2, borderRadius: 3, height: '100%' }}>
       <Stack direction="row" spacing={1} mb={1.5}>
@@ -113,10 +123,20 @@ export function MembersPage({ search }: Props) {
 
         <Box sx={{ flex: 1 }} />
 
-        <IconButton onClick={async () => { await api.exportExcel(); enqueueSnackbar('تم التصدير Excel', { variant: 'success' }); }}>
+        <IconButton
+          onClick={async () => {
+            await api.exportExcel();
+            enqueueSnackbar('تم التصدير Excel', { variant: 'success' });
+          }}
+        >
           <SaveAltRounded />
         </IconButton>
-        <IconButton onClick={async () => { await api.exportPdf(); enqueueSnackbar('تم التصدير PDF', { variant: 'success' }); }}>
+        <IconButton
+          onClick={async () => {
+            await api.exportPdf();
+            enqueueSnackbar('تم التصدير PDF', { variant: 'success' });
+          }}
+        >
           <PictureAsPdfRounded />
         </IconButton>
       </Stack>
@@ -151,6 +171,7 @@ export function MembersPage({ search }: Props) {
           await loadDashboard();
           enqueueSnackbar('تم حفظ البيانات', { variant: 'success' });
         }}
+        onBindCard={editing ? bindCard : undefined}
       />
 
       <RenewMemberDialog

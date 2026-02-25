@@ -22,6 +22,7 @@ import {
   renewMember,
   updateMember,
 } from '../services/member.service';
+import { k40AccessService } from '../services/k40-access.service';
 import { getSettings, updateSettings } from '../services/settings.service';
 import { getDashboard } from '../services/dashboard.service';
 
@@ -37,6 +38,14 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('settings:get', async () => getSettings());
   ipcMain.handle('settings:update', async (_, payload: Partial<AppSettings>) => updateSettings(payload));
+  ipcMain.handle('k40:state', async () => k40AccessService.getState());
+  ipcMain.handle('k40:recent', async (_, limit?: number) => k40AccessService.getRecentCheckins(limit ?? 10));
+  ipcMain.handle('k40:enroll-card', async (_, memberId: number, timeoutSeconds?: number) =>
+    k40AccessService.enrollMemberCard(memberId, timeoutSeconds ?? 10),
+  );
+  ipcMain.handle('k40:assign-card', async (_, memberId: number, cardId: string, forceTransfer?: boolean) =>
+    k40AccessService.assignCardToMember(memberId, cardId, Boolean(forceTransfer)),
+  );
 
   ipcMain.handle('export:excel', async () => {
     const result = await dialog.showSaveDialog({

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from PySide6.QtCore import QDate, Qt
 from PySide6.QtWidgets import (
     QDateEdit,
@@ -23,10 +25,17 @@ from database import GymDatabase
 class MemberDialog(QDialog):
     """Reusable form dialog for add/edit member."""
 
-    def __init__(self, db: GymDatabase, member=None, parent=None) -> None:
+    def __init__(
+        self,
+        db: GymDatabase,
+        member=None,
+        parent=None,
+        on_bind_card: Callable[[int], str | None] | None = None,
+    ) -> None:
         super().__init__(parent)
         self.db = db
         self.member = member
+        self.on_bind_card = on_bind_card
 
         self.setWindowTitle("إضافة لاعب جديد" if member is None else "تعديل بيانات لاعب")
         self.setMinimumWidth(460)
@@ -45,6 +54,14 @@ class MemberDialog(QDialog):
         self.duration_spin.setValue(1)
 
         self.preview_end_label = QLabel("-")
+        self.card_id_label = QLabel("-")
+        self.card_id_label.setObjectName("mutedText")
+
+        self.bind_card_btn = QPushButton("ربط بطاقة")
+        self.bind_card_btn.setObjectName("btnGhost")
+        self.bind_card_btn.clicked.connect(self.bind_card)
+        self.bind_card_btn.setEnabled(self.member is not None)
+
         self.notes_edit = QTextEdit()
         self.notes_edit.setPlaceholderText("ملاحظات إضافية...")
         self.notes_edit.setFixedHeight(110)
@@ -61,6 +78,8 @@ class MemberDialog(QDialog):
         form.addRow("تاريخ البداية:", self.start_date_edit)
         form.addRow("مدة الاشتراك (أشهر):", self.duration_spin)
         form.addRow("تاريخ النهاية (تلقائي):", self.preview_end_label)
+        form.addRow("رقم البطاقة:", self.card_id_label)
+        form.addRow("", self.bind_card_btn)
         form.addRow("ملاحظات:", self.notes_edit)
 
         save_btn = QPushButton("حفظ")
@@ -91,6 +110,7 @@ class MemberDialog(QDialog):
         self.phone_edit.setText(self.member.phone)
         self.start_date_edit.setDate(QDate.fromString(self.member.start_date, "yyyy-MM-dd"))
         self.duration_spin.setValue(self.member.duration_months)
+        self.card_id_label.setText(self.member.card_id or "-")
         self.notes_edit.setPlainText(self.member.notes)
 
     def update_end_preview(self) -> None:
@@ -123,3 +143,21 @@ class MemberDialog(QDialog):
             self.db.update_member(self.member.id, full_name, phone, start_date, duration, notes)
 
         self.accept()
+
+    def bind_card(self) -> None:
+        if self.member is None:
+            QMessageBox.warning(self, "تنبيه", "احفظ اللاعب أولاً ثم أعد فتحه لربط البطاقة.")
+            return
+
+        if self.on_bind_card is None:
+            QMessageBox.warning(self, "تعذر الربط", "خدمة ربط البطاقة غير متاحة حالياً.")
+            return
+
+        card_id = self.on_bind_card(self.member.id)
+        if not card_id:
+            return
+
+        self.member.card_id = card_id
+        self.card_id_label.setText(card_id)
+        QMessageBox.information(self, "نجاح", "تم ربط البطاقة باللاعب بنجاح.")
+

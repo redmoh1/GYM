@@ -7,6 +7,14 @@ async function main() {
   await prisma.setting.upsert({ where: { key: 'expiringSoonDays' }, update: {}, create: { key: 'expiringSoonDays', value: '7' } });
   await prisma.setting.upsert({ where: { key: 'currency' }, update: {}, create: { key: 'currency', value: 'EGP' } });
   await prisma.setting.upsert({ where: { key: 'gymName' }, update: {}, create: { key: 'gymName', value: 'Pro Gym' } });
+  await prisma.setting.upsert({ where: { key: 'deviceIp' }, update: {}, create: { key: 'deviceIp', value: '' } });
+  await prisma.setting.upsert({ where: { key: 'devicePort' }, update: {}, create: { key: 'devicePort', value: '4370' } });
+  await prisma.setting.upsert({ where: { key: 'deviceName' }, update: {}, create: { key: 'deviceName', value: 'ZKTeco K40' } });
+  await prisma.setting.upsert({
+    where: { key: 'enableDeviceListener' },
+    update: {},
+    create: { key: 'enableDeviceListener', value: 'true' },
+  });
 
   const monthly = await prisma.plan.upsert({
     where: { name: 'Monthly' },

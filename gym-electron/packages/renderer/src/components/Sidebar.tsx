@@ -1,5 +1,6 @@
 import DashboardRounded from '@mui/icons-material/DashboardRounded';
 import EventBusyRounded from '@mui/icons-material/EventBusyRounded';
+import FactCheckRounded from '@mui/icons-material/FactCheckRounded';
 import GroupsRounded from '@mui/icons-material/GroupsRounded';
 import ScheduleRounded from '@mui/icons-material/ScheduleRounded';
 import SettingsRounded from '@mui/icons-material/SettingsRounded';
@@ -11,6 +12,7 @@ const items = [
   { path: '/members', label: 'جميع اللاعبين', icon: <GroupsRounded /> },
   { path: '/expiring', label: 'قريب ينتهي', icon: <ScheduleRounded /> },
   { path: '/expired', label: 'المنتهين', icon: <EventBusyRounded /> },
+  { path: '/gate', label: 'Gate / Kiosk', icon: <FactCheckRounded /> },
   { path: '/settings', label: 'الإعدادات', icon: <SettingsRounded /> },
 ];
 
@@ -47,3 +49,4 @@ export function Sidebar() {
     </Box>
   );
 }
+
