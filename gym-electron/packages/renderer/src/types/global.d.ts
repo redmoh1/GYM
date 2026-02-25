@@ -1,6 +1,8 @@
 import type {
   AppSettings,
+  CapturedCardDTO,
   CheckinDTO,
+  CheckinResult,
   DashboardDTO,
   EnrollCardResultDTO,
   K40ListenerStateDTO,
@@ -16,9 +18,9 @@ declare global {
       members: {
         list: (query?: MembersQuery) => Promise<MemberDTO[]>;
         get: (id: number) => Promise<MemberDTO | null>;
-        create: (payload: MemberPayload) => Promise<MemberDTO>;
+        create: (payload: MemberPayload, managerPin?: string) => Promise<MemberDTO>;
         update: (id: number, payload: MemberPayload) => Promise<MemberDTO>;
-        delete: (id: number) => Promise<void>;
+        delete: (id: number, managerPin?: string) => Promise<void>;
         renew: (payload: RenewalPayload) => Promise<MemberDTO>;
       };
       dashboard: { get: () => Promise<DashboardDTO> };
@@ -26,11 +28,17 @@ declare global {
         get: () => Promise<AppSettings>;
         update: (payload: Partial<AppSettings>) => Promise<AppSettings>;
       };
+      security: {
+        verifyPin: (pin: string) => Promise<boolean>;
+        setPin: (pin: string) => Promise<boolean>;
+      };
       k40: {
         state: () => Promise<K40ListenerStateDTO>;
         recent: (limit?: number) => Promise<CheckinDTO[]>;
-        enrollCard: (memberId: number, timeoutSeconds?: number) => Promise<EnrollCardResultDTO>;
-        assignCard: (memberId: number, cardId: string, forceTransfer?: boolean) => Promise<EnrollCardResultDTO>;
+        captureCard: (timeoutSeconds?: number) => Promise<CapturedCardDTO>;
+        enrollCard: (memberId: number, timeoutSeconds?: number, managerPin?: string) => Promise<EnrollCardResultDTO>;
+        assignCard: (memberId: number, cardId: string, forceTransfer?: boolean, managerPin?: string) => Promise<EnrollCardResultDTO>;
+        recordManualCheckin: (memberId: number, cardId: string, result: CheckinResult, reason: string) => Promise<CheckinDTO>;
         onEvent: (handler: (event: CheckinDTO) => void) => () => void;
         onState: (handler: (state: K40ListenerStateDTO) => void) => () => void;
       };

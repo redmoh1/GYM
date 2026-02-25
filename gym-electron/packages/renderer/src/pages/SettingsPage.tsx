@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import BackupRounded from '@mui/icons-material/BackupRounded';
+import LockResetRounded from '@mui/icons-material/LockResetRounded';
 import RestoreRounded from '@mui/icons-material/RestoreRounded';
 import SaveRounded from '@mui/icons-material/SaveRounded';
 import {
@@ -29,6 +30,8 @@ export function SettingsPage() {
   const [devicePort, setDevicePort] = useState(4370);
   const [deviceName, setDeviceName] = useState('ZKTeco K40');
   const [enableListener, setEnableListener] = useState(true);
+  const [strictMode, setStrictMode] = useState(false);
+  const [managerPin, setManagerPin] = useState('');
   const [listenerState, setListenerState] = useState<K40ListenerStateDTO | null>(null);
 
   useEffect(() => {
@@ -43,6 +46,7 @@ export function SettingsPage() {
     setDevicePort(settings.devicePort);
     setDeviceName(settings.deviceName);
     setEnableListener(settings.enableDeviceListener);
+    setStrictMode(settings.strictMode);
   }, [settings]);
 
   useEffect(() => {
@@ -69,31 +73,56 @@ export function SettingsPage() {
         الإعدادات
       </Typography>
 
-      <Stack spacing={2} maxWidth={640}>
+      <Stack spacing={2} maxWidth={700}>
         <TextField
           type="number"
           label="عدد أيام قريب ينتهي"
           value={expiringDays}
-          onChange={(e) => setExpiringDays(Number(e.target.value))}
+          onChange={(event) => setExpiringDays(Number(event.target.value))}
         />
-        <TextField label="اسم النادي" value={gymName} onChange={(e) => setGymName(e.target.value)} />
+
+        <TextField label="اسم النادي" value={gymName} onChange={(event) => setGymName(event.target.value)} />
 
         <Typography variant="subtitle1" fontWeight={800} sx={{ pt: 1 }}>
           Device Settings
         </Typography>
 
-        <TextField label="device_ip" value={deviceIp} onChange={(e) => setDeviceIp(e.target.value)} />
+        <TextField label="device_ip" value={deviceIp} onChange={(event) => setDeviceIp(event.target.value)} />
+
         <TextField
           type="number"
           label="device_port"
           value={devicePort}
-          onChange={(e) => setDevicePort(Number(e.target.value))}
+          onChange={(event) => setDevicePort(Number(event.target.value))}
         />
-        <TextField label="device_name" value={deviceName} onChange={(e) => setDeviceName(e.target.value)} />
+
+        <TextField label="device_name" value={deviceName} onChange={(event) => setDeviceName(event.target.value)} />
+
         <FormControlLabel
-          control={<Switch checked={enableListener} onChange={(e) => setEnableListener(e.target.checked)} />}
+          control={<Switch checked={enableListener} onChange={(event) => setEnableListener(event.target.checked)} />}
           label="enable_device_listener"
         />
+
+        <Typography variant="subtitle1" fontWeight={800} sx={{ pt: 1 }}>
+          Security
+        </Typography>
+
+        <FormControlLabel
+          control={<Switch checked={strictMode} onChange={(event) => setStrictMode(event.target.checked)} />}
+          label="strict_mode"
+        />
+
+        <TextField
+          label="PIN المدير الجديد"
+          type="password"
+          value={managerPin}
+          onChange={(event) => setManagerPin(event.target.value)}
+          helperText="اتركه فارغًا إذا لا تريد تغييره الآن"
+        />
+
+        <Typography variant="body2" color="text.secondary">
+          حالة PIN: {settings?.managerPinConfigured ? 'مضبوط' : 'غير مضبوط'}
+        </Typography>
 
         <Typography variant="body2" color="text.secondary">
           {listenerText}
@@ -111,11 +140,33 @@ export function SettingsPage() {
                 devicePort,
                 deviceName,
                 enableDeviceListener: enableListener,
+                strictMode,
               });
+
+              if (managerPin.trim()) {
+                await api.security.setPin(managerPin.trim());
+                setManagerPin('');
+                enqueueSnackbar('تم تحديث PIN المدير', { variant: 'success' });
+              }
+
+              await loadSettings();
               enqueueSnackbar('تم حفظ الإعدادات', { variant: 'success' });
             }}
           >
             حفظ
+          </Button>
+
+          <Button
+            variant="outlined"
+            startIcon={<LockResetRounded />}
+            onClick={async () => {
+              const pin = window.prompt('أدخل PIN الحالي للتحقق:', '');
+              if (!pin) return;
+              const valid = await api.security.verifyPin(pin);
+              enqueueSnackbar(valid ? 'PIN صحيح' : 'PIN غير صحيح', { variant: valid ? 'success' : 'error' });
+            }}
+          >
+            اختبار PIN
           </Button>
 
           <Button

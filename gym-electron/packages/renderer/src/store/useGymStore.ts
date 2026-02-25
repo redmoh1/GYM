@@ -13,9 +13,9 @@ interface GymState {
   loadMembers: (query?: MembersQuery) => Promise<void>;
   loadDashboard: () => Promise<void>;
   loadSettings: () => Promise<void>;
-  createMember: (payload: MemberPayload) => Promise<void>;
+  createMember: (payload: MemberPayload, managerPin?: string) => Promise<void>;
   updateMember: (id: number, payload: MemberPayload) => Promise<void>;
-  deleteMember: (id: number) => Promise<void>;
+  deleteMember: (id: number, managerPin?: string) => Promise<void>;
   renewMember: (payload: RenewalPayload) => Promise<MemberDTO>;
   updateSettings: (payload: Partial<AppSettings>) => Promise<void>;
 }
@@ -39,8 +39,8 @@ export const useGymStore = create<GymState>((set) => ({
     const settings = await api.settings.get();
     set({ settings });
   },
-  createMember: async (payload) => {
-    await api.members.create(payload);
+  createMember: async (payload, managerPin) => {
+    await api.members.create(payload, managerPin);
     const query = useGymStore.getState().lastMembersQuery;
     const members = await api.members.list(query);
     const dashboard = await api.dashboard.get();
@@ -53,8 +53,8 @@ export const useGymStore = create<GymState>((set) => ({
     const dashboard = await api.dashboard.get();
     set({ members, dashboard });
   },
-  deleteMember: async (id) => {
-    await api.members.delete(id);
+  deleteMember: async (id, managerPin) => {
+    await api.members.delete(id, managerPin);
     const query = useGymStore.getState().lastMembersQuery;
     const members = await api.members.list(query);
     const dashboard = await api.dashboard.get();

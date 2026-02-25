@@ -4,6 +4,7 @@ import type { MemberDTO, MemberPayload, MembersQuery, RenewalPayload } from '@gy
 
 import { prisma } from '../db/client';
 import { statusFromDate } from '../utils/date';
+import { requireManagerPinForDelete, requireManagerPinIfStrict } from './security.service';
 import { getSettings } from './settings.service';
 import { renewMemberSubscription } from './subscription.service';
 
@@ -26,6 +27,19 @@ function toDTO(member: any, soonDays: number): MemberDTO {
   };
 }
 
+async function ensureCardNotUsed(cardId: string): Promise<void> {
+  const normalized = cardId.trim();
+  if (!normalized) return;
+
+  const existing = await prisma.member.findFirst({
+    where: { cardId: normalized },
+    select: { id: true, fullName: true },
+  });
+
+  if (!existing) return;
+  throw new Error(`هذه البطاقة مرتبطة باللاعب: ${existing.fullName}`);
+}
+
 export async function listMembers(query: MembersQuery = {}): Promise<MemberDTO[]> {
   const settings = await getSettings();
   const where: any = query.search
@@ -46,7 +60,7 @@ export async function listMembers(query: MembersQuery = {}): Promise<MemberDTO[]
 
   let mapped = rows.map((row) => toDTO(row, settings.expiringSoonDays));
   if (query.status && query.status !== 'All') {
-    mapped = mapped.filter((m) => m.status === query.status);
+    mapped = mapped.filter((member) => member.status === query.status);
   }
 
   return mapped;
@@ -58,8 +72,18 @@ export async function getMemberById(id: number): Promise<MemberDTO | null> {
   return row ? toDTO(row, settings.expiringSoonDays) : null;
 }
 
-export async function createMember(payload: MemberPayload): Promise<MemberDTO> {
+export async function createMember(payload: MemberPayload, managerPin?: string): Promise<MemberDTO> {
   const settings = await getSettings();
+
+  const normalizedCardId = (payload.cardId ?? '').trim();
+  if (settings.strictMode && !normalizedCardId) {
+    await requireManagerPinIfStrict('Create member without card', managerPin);
+  }
+
+  if (normalizedCardId) {
+    await ensureCardNotUsed(normalizedCardId);
+  }
+
   const endDate = addMonths(new Date(payload.startDate), payload.durationMonths);
 
   const row = await prisma.member.create({
@@ -71,6 +95,7 @@ export async function createMember(payload: MemberPayload): Promise<MemberDTO> {
       endDate,
       notes: (payload.notes ?? '').trim(),
       planId: payload.planId ?? null,
+      cardId: normalizedCardId,
     },
     include: { plan: true },
   });
@@ -99,7 +124,8 @@ export async function updateMember(id: number, payload: MemberPayload): Promise<
   return toDTO(row, settings.expiringSoonDays);
 }
 
-export async function deleteMember(id: number): Promise<void> {
+export async function deleteMember(id: number, managerPin?: string): Promise<void> {
+  await requireManagerPinForDelete(managerPin);
   await prisma.member.delete({ where: { id } });
 }
 

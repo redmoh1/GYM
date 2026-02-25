@@ -23,6 +23,11 @@ import { theme } from '../styles/theme';
 
 const cacheRtl = createCache({ key: 'muirtl', stylisPlugins: [prefixer, rtlPlugin] });
 
+function shouldRequestPin(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /pin|strict mode|manager/i.test(message);
+}
+
 function AppShell() {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
@@ -108,8 +113,15 @@ function AppShell() {
       <MemberDialog
         open={openAdd}
         onClose={() => setOpenAdd(false)}
-        onSubmit={async (payload) => {
-          await createMember(payload);
+        onSubmit={async (payload, managerPin) => {
+          try {
+            await createMember(payload, managerPin);
+          } catch (error) {
+            if (!shouldRequestPin(error)) throw error;
+            const pin = window.prompt('تسجيل لاعب جديد يتطلب PIN المدير:', '');
+            if (!pin) return;
+            await createMember(payload, pin.trim());
+          }
           enqueueSnackbar('تمت إضافة اللاعب', { variant: 'success' });
         }}
       />

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField, Typography } from '@mui/material';
 
@@ -12,6 +12,11 @@ interface Props {
 
 export function RenewMemberDialog({ open, memberName, loading = false, onClose, onConfirm }: Props) {
   const [months, setMonths] = useState(1);
+
+  useEffect(() => {
+    if (!open) return;
+    setMonths(1);
+  }, [open]);
 
   const handleConfirm = async () => {
     await onConfirm(months);
@@ -27,8 +32,8 @@ export function RenewMemberDialog({ open, memberName, loading = false, onClose, 
             type="number"
             label="عدد الأشهر"
             value={months}
-            onChange={(e) => {
-              const value = Number(e.target.value);
+            onChange={(event) => {
+              const value = Number(event.target.value);
               if (!Number.isFinite(value)) return;
               setMonths(Math.min(12, Math.max(1, value)));
             }}

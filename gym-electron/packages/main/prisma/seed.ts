@@ -1,7 +1,13 @@
+import { createHash } from 'node:crypto';
+
 import { PrismaClient } from '@prisma/client';
 import { addMonths, subDays } from 'date-fns';
 
 const prisma = new PrismaClient();
+
+function hashPin(pin: string): string {
+  return createHash('sha256').update(pin).digest('hex');
+}
 
 async function main() {
   await prisma.setting.upsert({ where: { key: 'expiringSoonDays' }, update: {}, create: { key: 'expiringSoonDays', value: '7' } });
@@ -10,10 +16,12 @@ async function main() {
   await prisma.setting.upsert({ where: { key: 'deviceIp' }, update: {}, create: { key: 'deviceIp', value: '' } });
   await prisma.setting.upsert({ where: { key: 'devicePort' }, update: {}, create: { key: 'devicePort', value: '4370' } });
   await prisma.setting.upsert({ where: { key: 'deviceName' }, update: {}, create: { key: 'deviceName', value: 'ZKTeco K40' } });
+  await prisma.setting.upsert({ where: { key: 'enableDeviceListener' }, update: {}, create: { key: 'enableDeviceListener', value: 'true' } });
+  await prisma.setting.upsert({ where: { key: 'strictMode' }, update: {}, create: { key: 'strictMode', value: 'false' } });
   await prisma.setting.upsert({
-    where: { key: 'enableDeviceListener' },
+    where: { key: 'managerPinHash' },
     update: {},
-    create: { key: 'enableDeviceListener', value: 'true' },
+    create: { key: 'managerPinHash', value: hashPin('1234') },
   });
 
   const monthly = await prisma.plan.upsert({
@@ -63,8 +71,8 @@ async function main() {
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
+  .catch((error) => {
+    console.error(error);
     process.exit(1);
   })
   .finally(async () => {

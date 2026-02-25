@@ -21,6 +21,18 @@ interface Props {
   search: string;
 }
 
+function shouldRequestPin(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /pin|strict mode|manager/i.test(message);
+}
+
+function promptPin(label: string): string | null {
+  const raw = window.prompt(label, '');
+  if (!raw) return null;
+  const normalized = raw.trim();
+  return normalized || null;
+}
+
 export function MembersPage({ search }: Props) {
   const { enqueueSnackbar } = useSnackbar();
   const { members, loadMembers, loadDashboard, createMember, updateMember, deleteMember, renewMember } = useGymStore();
@@ -72,7 +84,10 @@ export function MembersPage({ search }: Props) {
               color="error"
               onClick={async () => {
                 if (!window.confirm(`حذف اللاعب: ${row.fullName}؟`)) return;
-                await deleteMember(row.id);
+                const pin = promptPin('أدخل PIN المدير للحذف:');
+                if (!pin) return;
+
+                await deleteMember(row.id, pin);
                 await loadMembers({ search, status });
                 await loadDashboard();
                 enqueueSnackbar('تم حذف اللاعب', { variant: 'success' });
@@ -164,9 +179,20 @@ export function MembersPage({ search }: Props) {
           setDialogOpen(false);
           setEditing(null);
         }}
-        onSubmit={async (payload) => {
-          if (editing) await updateMember(editing.id, payload);
-          else await createMember(payload);
+        onSubmit={async (payload, managerPin) => {
+          if (editing) {
+            await updateMember(editing.id, payload);
+          } else {
+            try {
+              await createMember(payload, managerPin);
+            } catch (error) {
+              if (!shouldRequestPin(error)) throw error;
+              const pin = promptPin('تسجيل لاعب جديد يتطلب PIN المدير:');
+              if (!pin) return;
+              await createMember(payload, pin);
+            }
+          }
+
           await loadMembers({ search, status });
           await loadDashboard();
           enqueueSnackbar('تم حفظ البيانات', { variant: 'success' });

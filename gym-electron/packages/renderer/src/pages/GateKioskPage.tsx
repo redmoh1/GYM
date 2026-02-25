@@ -1,8 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 
 import {
-  Avatar,
-  Box,
   Button,
   Chip,
   Dialog,
@@ -26,32 +24,12 @@ import type { CheckinDTO, K40ListenerStateDTO, MemberDTO, MemberPayload } from '
 
 import { MemberDialog } from '../components/MemberDialog';
 import { RenewMemberDialog } from '../components/RenewMemberDialog';
+import { GateProfilePanel } from '../components/gate/GateProfilePanel';
+import { LinkCardDialog } from '../components/gate/LinkCardDialog';
+import { UnknownCardDialog } from '../components/gate/UnknownCardDialog';
 import { api } from '../lib/api';
 import { enrollCardWithConflictResolution } from '../lib/card-enrollment';
 import { useGymStore } from '../store/useGymStore';
-
-const MANAGER_PIN = '1234';
-
-function statusLabel(result: CheckinDTO['result'] | 'WAITING'): string {
-  if (result === 'ALLOW') return 'ALLOW';
-  if (result === 'DENY') return 'DENY';
-  if (result === 'UNKNOWN') return 'UNKNOWN';
-  return 'WAITING';
-}
-
-function statusColor(result: CheckinDTO['result'] | 'WAITING'): 'success' | 'error' | 'warning' | 'default' {
-  if (result === 'ALLOW') return 'success';
-  if (result === 'DENY') return 'error';
-  if (result === 'UNKNOWN') return 'warning';
-  return 'default';
-}
-
-function subscriptionLabel(status: MemberDTO['status'] | null): string {
-  if (!status) return '-';
-  if (status === 'Active') return 'ساري';
-  if (status === 'ExpiringSoon') return 'قريب ينتهي';
-  return 'منتهي';
-}
 
 function formatDateTime(value: string | null): string {
   if (!value) return '-';
@@ -60,9 +38,22 @@ function formatDateTime(value: string | null): string {
   return parsed.toLocaleString('ar-EG');
 }
 
-function toFileUrl(pathValue: string): string | undefined {
-  if (!pathValue) return undefined;
-  return `file:///${pathValue.replace(/\\/g, '/')}`;
+function rowColor(result: CheckinDTO['result']): string {
+  if (result === 'ALLOW') return '#ECFDF3';
+  if (result === 'DENY') return '#FEF2F2';
+  return '#FFF9E6';
+}
+
+function shouldRequestPin(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /pin|strict mode|manager/i.test(message);
+}
+
+function requestManagerPin(promptText: string): string | null {
+  const value = window.prompt(promptText, '');
+  if (!value) return null;
+  const normalized = value.trim();
+  return normalized || null;
 }
 
 export function GateKioskPage() {
@@ -79,12 +70,17 @@ export function GateKioskPage() {
   const [renewing, setRenewing] = useState(false);
 
   const [editOpen, setEditOpen] = useState(false);
+
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteWord, setDeleteWord] = useState('');
   const [deletePin, setDeletePin] = useState('');
 
-  const timerRef = useRef<number | null>(null);
+  const [unknownCardId, setUnknownCardId] = useState<string | null>(null);
+  const [pendingCardId, setPendingCardId] = useState<string>('');
+  const [createFromUnknownOpen, setCreateFromUnknownOpen] = useState(false);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [linking, setLinking] = useState(false);
 
   const refreshRecent = async (): Promise<void> => {
     const rows = await api.k40.recent(10);
@@ -96,8 +92,47 @@ export function GateKioskPage() {
       setActiveMember(null);
       return;
     }
+
     const member = await api.members.get(memberId);
     setActiveMember(member);
+  };
+
+  const withStrictPinRetry = async <T,>(
+    action: (pin?: string) => Promise<T>,
+    pinPrompt: string,
+  ): Promise<T> => {
+    try {
+      return await action(undefined);
+    } catch (error) {
+      if (!shouldRequestPin(error)) throw error;
+      const pin = requestManagerPin(pinPrompt);
+      if (!pin) {
+        throw new Error('ØªÙ… Ø¥Ù„ØºØ§Ø¡ Ø§Ù„Ø¹Ù…Ù„ÙŠØ©.');
+      }
+      return action(pin);
+    }
+  };
+
+  const assignCardToMemberFlow = async (memberId: number, cardId: string): Promise<void> => {
+    const initial = await withStrictPinRetry(
+      async (pin) => api.k40.assignCard(memberId, cardId, false, pin),
+      'Ø£Ø¯Ø®Ù„ PIN Ø§Ù„Ù…Ø¯ÙŠØ± Ù„Ø¥ØªÙ…Ø§Ù… Ø§Ù„Ø±Ø¨Ø·:',
+    );
+
+    if (initial.status === 'BOUND') return;
+
+    const owner = initial.currentOwnerName || `#${initial.currentOwnerMemberId ?? '-'}`;
+    const shouldTransfer = window.confirm(`Ù‡Ø°Ù‡ Ø§Ù„Ø¨Ø·Ø§Ù‚Ø© Ù…Ø±ØªØ¨Ø·Ø© Ø¨Ø§Ù„Ù„Ø§Ø¹Ø¨: ${owner}\nÙ‡Ù„ ØªØ±ÙŠØ¯ Ù†Ù‚Ù„ Ø§Ù„Ø¨Ø·Ø§Ù‚Ø© Ù„Ù‡Ø°Ø§ Ø§Ù„Ù„Ø§Ø¹Ø¨ØŸ`);
+    if (!shouldTransfer) {
+      throw new Error('ØªÙ… Ø¥Ù„ØºØ§Ø¡ Ù†Ù‚Ù„ Ø§Ù„Ø¨Ø·Ø§Ù‚Ø©.');
+    }
+
+    const transferPin = requestManagerPin('Ù†Ù‚Ù„ Ø§Ù„Ø¨Ø·Ø§Ù‚Ø© ÙŠØªØ·Ù„Ø¨ PIN Ø§Ù„Ù…Ø¯ÙŠØ±:');
+    if (!transferPin) {
+      throw new Error('ØªÙ… Ø¥Ù„ØºØ§Ø¡ Ø§Ù„Ø¹Ù…Ù„ÙŠØ©.');
+    }
+
+    await api.k40.assignCard(memberId, cardId, true, transferPin);
   };
 
   useEffect(() => {
@@ -113,14 +148,17 @@ export function GateKioskPage() {
         const without = prev.filter((row) => row.id !== event.id);
         return [event, ...without].slice(0, 10);
       });
-      void refreshMember(event.memberId);
 
-      if (timerRef.current) {
-        window.clearTimeout(timerRef.current);
+      if (event.memberId) {
+        void refreshMember(event.memberId);
+        setUnknownCardId(null);
+        setCreateFromUnknownOpen(false);
+        setLinkDialogOpen(false);
+      } else {
+        setActiveMember(null);
+        setUnknownCardId(event.cardId);
+        setPendingCardId(event.cardId);
       }
-      timerRef.current = window.setTimeout(() => {
-        setCurrentEvent(null);
-      }, 3000);
     });
 
     const unsubState = api.k40.onState((state) => {
@@ -130,32 +168,33 @@ export function GateKioskPage() {
     return () => {
       unsubEvent();
       unsubState();
-      if (timerRef.current) {
-        window.clearTimeout(timerRef.current);
-      }
     };
   }, []);
 
-  const latestStatus = currentEvent?.result ?? 'WAITING';
-  const avatarSrc = activeMember?.photoPath ? toFileUrl(activeMember.photoPath) : undefined;
-
-  const latestEndDate = activeMember?.endDate ?? currentEvent?.memberEndDate ?? null;
-  const latestDaysLeft =
-    activeMember?.daysLeft ?? (currentEvent?.daysLeft !== undefined ? currentEvent.daysLeft : null);
-
-  const deleteAllowed = deleteWord.trim() === 'حذف' || deletePin.trim() === MANAGER_PIN;
-
   const handleRenew = async (months: number) => {
     if (!activeMember) return;
-    const ok = window.confirm(`هل تريد تجديد اشتراك (${activeMember.fullName}) لمدة ${months} شهر؟`);
-    if (!ok) return;
 
     setRenewing(true);
     try {
       const updated = await renewMember({ memberId: activeMember.id, months });
       await loadDashboard();
       await refreshMember(activeMember.id);
-      enqueueSnackbar(`تم تجديد الاشتراك حتى ${updated.endDate}`, { variant: 'success' });
+
+      if (updated.status !== 'Expired') {
+        const cardForAllow = updated.cardId || currentEvent?.cardId || '';
+        if (cardForAllow) {
+          const allowCheckin = await api.k40.recordManualCheckin(
+            updated.id,
+            cardForAllow,
+            'ALLOW',
+            'Ø§Ø´ØªØ±Ø§Ùƒ Ø³Ø§Ø±ÙŠ Ø¨Ø¹Ø¯ Ø§Ù„ØªØ¬Ø¯ÙŠØ¯',
+          );
+          setCurrentEvent(allowCheckin);
+          setRecent((prev) => [allowCheckin, ...prev.filter((row) => row.id !== allowCheckin.id)].slice(0, 10));
+        }
+      }
+
+      enqueueSnackbar('ØªÙ… ØªØ¬Ø¯ÙŠØ¯ Ø§Ù„Ø§Ø´ØªØ±Ø§Ùƒ Ø¨Ù†Ø¬Ø§Ø­', { variant: 'success' });
       setRenewOpen(false);
     } finally {
       setRenewing(false);
@@ -163,10 +202,18 @@ export function GateKioskPage() {
   };
 
   const handleDelete = async () => {
-    if (!activeMember || !deleteAllowed || deleting) return;
+    if (!activeMember || deleting) return;
+    if (deleteWord.trim() !== 'Ø­Ø°Ù') return;
+
+    const managerPin = deletePin.trim();
+    if (!managerPin) {
+      enqueueSnackbar('PIN Ø§Ù„Ù…Ø¯ÙŠØ± Ù…Ø·Ù„ÙˆØ¨ Ù„Ù„Ø­Ø°Ù.', { variant: 'error' });
+      return;
+    }
+
     setDeleting(true);
     try {
-      await deleteMember(activeMember.id);
+      await deleteMember(activeMember.id, managerPin);
       await loadDashboard();
       await refreshRecent();
       setActiveMember(null);
@@ -174,7 +221,10 @@ export function GateKioskPage() {
       setDeleteOpen(false);
       setDeleteWord('');
       setDeletePin('');
-      enqueueSnackbar('تم حذف اللاعب بنجاح', { variant: 'success' });
+      enqueueSnackbar('ØªÙ… Ø­Ø°Ù Ø§Ù„Ù„Ø§Ø¹Ø¨ Ø¨Ù†Ø¬Ø§Ø­', { variant: 'success' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'ØªØ¹Ø°Ø± Ø­Ø°Ù Ø§Ù„Ù„Ø§Ø¹Ø¨';
+      enqueueSnackbar(message, { variant: 'error' });
     } finally {
       setDeleting(false);
     }
@@ -185,100 +235,91 @@ export function GateKioskPage() {
     await refreshMember(memberId);
     await refreshRecent();
     await loadDashboard();
-    enqueueSnackbar(`تم ربط البطاقة: ${cardId}`, { variant: 'success' });
+    enqueueSnackbar(`ØªÙ… Ø±Ø¨Ø· Ø§Ù„Ø¨Ø·Ø§Ù‚Ø©: ${cardId}`, { variant: 'success' });
     return cardId;
   };
 
-  const actionDisabled = !activeMember;
+  const handleCreateMemberFromUnknown = async (payload: MemberPayload, managerPin?: string): Promise<void> => {
+    const effectiveCardId = pendingCardId || payload.cardId || '';
+    if (!effectiveCardId) {
+      throw new Error('لا يوجد card_id لربطه.');
+    }
 
-  const listenerText = useMemo(() => {
-    if (!listenerState) return 'غير متاح';
-    return `${listenerState.connected ? 'متصل' : 'غير متصل'} - ${listenerState.status}`;
-  }, [listenerState]);
+    const created = await withStrictPinRetry(
+      async (pin) => api.members.create({ ...payload, cardId: effectiveCardId }, managerPin ?? pin),
+      'تسجيل لاعب جديد يتطلب PIN المدير:',
+    );
+
+    await refreshMember(created.id);
+    await refreshRecent();
+    await loadDashboard();
+
+    setUnknownCardId(null);
+    setCreateFromUnknownOpen(false);
+    enqueueSnackbar('تم تسجيل اللاعب وربط البطاقة بنجاح', { variant: 'success' });
+  };
+
+  const handleLinkUnknownToExisting = async (memberId: number): Promise<void> => {
+    if (!pendingCardId) return;
+
+    setLinking(true);
+    try {
+      await assignCardToMemberFlow(memberId, pendingCardId);
+      await refreshMember(memberId);
+      await refreshRecent();
+      await loadDashboard();
+      setUnknownCardId(null);
+      setLinkDialogOpen(false);
+      enqueueSnackbar('ØªÙ… Ø±Ø¨Ø· Ø§Ù„Ø¨Ø·Ø§Ù‚Ø© Ø¨Ù†Ø¬Ø§Ø­', { variant: 'success' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'ØªØ¹Ø°Ø± Ø±Ø¨Ø· Ø§Ù„Ø¨Ø·Ø§Ù‚Ø©';
+      enqueueSnackbar(message, { variant: 'error' });
+    } finally {
+      setLinking(false);
+    }
+  };
 
   return (
     <Stack spacing={2} sx={{ height: '100%' }}>
-      <Paper sx={{ p: 2.5, borderRadius: 3 }}>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }}>
-          <Avatar
-            src={avatarSrc}
-            variant="rounded"
-            sx={{ width: 150, height: 150, bgcolor: '#F1F5F9', color: '#64748B', fontWeight: 800, fontSize: 18 }}
-          >
-            {activeMember?.fullName ? activeMember.fullName.slice(0, 1) : '?'}
-          </Avatar>
-
-          <Box sx={{ flex: 1 }}>
-            <Stack direction="row" spacing={1} alignItems="center" mb={1.5} flexWrap="wrap" useFlexGap>
-              <Typography variant="h5" fontWeight={900}>
-                Gate / Reception
-              </Typography>
-              <Chip label={statusLabel(latestStatus)} color={statusColor(latestStatus)} sx={{ fontWeight: 800 }} />
-              <Chip label={subscriptionLabel(activeMember?.status ?? null)} variant="outlined" />
-            </Stack>
-
-            <Stack spacing={0.75}>
-              <Typography><strong>الاسم:</strong> {activeMember?.fullName || currentEvent?.memberName || 'غير معروف'}</Typography>
-              <Typography><strong>الهاتف:</strong> {activeMember?.phone || currentEvent?.memberPhone || '-'}</Typography>
-              <Typography><strong>رقم البطاقة:</strong> {currentEvent?.cardId || activeMember?.cardId || '-'}</Typography>
-              <Typography><strong>تاريخ الانتهاء:</strong> {latestEndDate ? formatDateTime(latestEndDate) : '-'}</Typography>
-              <Typography><strong>الأيام المتبقية:</strong> {latestDaysLeft ?? '-'}</Typography>
-              <Typography><strong>السبب:</strong> {currentEvent?.reason || 'بانتظار تمرير بطاقة...'}</Typography>
-              <Typography color="text.secondary">
-                <strong>آخر عملية:</strong> {currentEvent ? formatDateTime(currentEvent.checkedAt) : 'بانتظار تمرير بطاقة...'}
-              </Typography>
-              <Typography color="text.secondary">
-                <strong>حالة الجهاز:</strong> {listenerText}
-              </Typography>
-            </Stack>
-
-            <Stack direction="row" spacing={1} mt={2} flexWrap="wrap" useFlexGap>
-              <Button variant="contained" onClick={() => setRenewOpen(true)} disabled={actionDisabled}>
-                تجديد
-              </Button>
-              <Button variant="outlined" onClick={() => setEditOpen(true)} disabled={actionDisabled}>
-                تعديل
-              </Button>
-              <Button variant="outlined" color="error" onClick={() => setDeleteOpen(true)} disabled={actionDisabled}>
-                حذف
-              </Button>
-              <Button
-                variant="outlined"
-                onClick={() => {
-                  if (!activeMember) return;
-                  navigate(`/member/${activeMember.id}`);
-                }}
-                disabled={actionDisabled}
-              >
-                عرض الملف
-              </Button>
-            </Stack>
-          </Box>
-        </Stack>
-      </Paper>
+      <GateProfilePanel
+        event={currentEvent}
+        member={activeMember}
+        listenerState={listenerState}
+        onRenew={() => setRenewOpen(true)}
+        onEdit={() => setEditOpen(true)}
+        onDelete={() => setDeleteOpen(true)}
+        onViewProfile={() => {
+          if (!activeMember) return;
+          navigate(`/member/${activeMember.id}`);
+        }}
+      />
 
       <Paper sx={{ p: 2, borderRadius: 3, flex: 1, minHeight: 320 }}>
         <Typography fontWeight={800} mb={1.5}>
-          آخر 10 عمليات مرور
+          Ø¢Ø®Ø± 10 Ø¹Ù…Ù„ÙŠØ§Øª Ù…Ø±ÙˆØ±
         </Typography>
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>الوقت</TableCell>
-              <TableCell>الاسم</TableCell>
-              <TableCell>رقم البطاقة</TableCell>
-              <TableCell>الحالة</TableCell>
-              <TableCell>السبب</TableCell>
+              <TableCell>Ø§Ù„ÙˆÙ‚Øª</TableCell>
+              <TableCell>Ø§Ù„Ø§Ø³Ù…</TableCell>
+              <TableCell>Ø±Ù‚Ù… Ø§Ù„Ø¨Ø·Ø§Ù‚Ø©</TableCell>
+              <TableCell>Ø§Ù„Ø­Ø§Ù„Ø©</TableCell>
+              <TableCell>Ø§Ù„Ø³Ø¨Ø¨</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {recent.map((row) => (
-              <TableRow key={row.id} hover>
+              <TableRow key={row.id} hover sx={{ backgroundColor: rowColor(row.result) }}>
                 <TableCell>{formatDateTime(row.checkedAt)}</TableCell>
-                <TableCell>{row.memberName || 'غير معروف'}</TableCell>
+                <TableCell>{row.memberName || 'ØºÙŠØ± Ù…Ø¹Ø±ÙˆÙ'}</TableCell>
                 <TableCell>{row.cardId}</TableCell>
                 <TableCell>
-                  <Chip size="small" label={row.result} color={statusColor(row.result)} />
+                  <Chip
+                    size="small"
+                    label={row.result}
+                    color={row.result === 'ALLOW' ? 'success' : row.result === 'DENY' ? 'error' : 'warning'}
+                  />
                 </TableCell>
                 <TableCell>{row.reason}</TableCell>
               </TableRow>
@@ -286,7 +327,7 @@ export function GateKioskPage() {
             {recent.length === 0 && (
               <TableRow>
                 <TableCell colSpan={5} align="center">
-                  لا توجد عمليات مرور بعد.
+                  Ù„Ø§ ØªÙˆØ¬Ø¯ Ø¹Ù…Ù„ÙŠØ§Øª Ù…Ø±ÙˆØ± Ø¨Ø¹Ø¯.
                 </TableCell>
               </TableRow>
             )}
@@ -313,40 +354,78 @@ export function GateKioskPage() {
           await updateMember(activeMember.id, payload);
           await loadDashboard();
           await refreshMember(activeMember.id);
-          enqueueSnackbar('تم تحديث بيانات اللاعب', { variant: 'success' });
+          enqueueSnackbar('ØªÙ… ØªØ­Ø¯ÙŠØ« Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ù„Ø§Ø¹Ø¨', { variant: 'success' });
         }}
         onBindCard={activeMember ? bindCard : undefined}
       />
 
-      <Dialog open={deleteOpen && Boolean(activeMember)} onClose={deleting ? undefined : () => setDeleteOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle>تأكيد حذف اللاعب</DialogTitle>
+      <Dialog
+        open={deleteOpen && Boolean(activeMember)}
+        onClose={deleting ? undefined : () => setDeleteOpen(false)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>ØªØ£ÙƒÙŠØ¯ Ø­Ø°Ù Ø§Ù„Ù„Ø§Ø¹Ø¨</DialogTitle>
         <DialogContent sx={{ display: 'grid', gap: 1.5, pt: 1.5 }}>
           <Typography color="error">
-            سيتم حذف اللاعب نهائياً. للتأكيد اكتب كلمة <strong>حذف</strong> أو أدخل PIN المدير.
+            Ø³ÙŠØªÙ… Ø­Ø°Ù Ø§Ù„Ù„Ø§Ø¹Ø¨ Ù†Ù‡Ø§Ø¦ÙŠØ§Ù‹. Ø§ÙƒØªØ¨ ÙƒÙ„Ù…Ø© <strong>Ø­Ø°Ù</strong> Ø«Ù… Ø£Ø¯Ø®Ù„ PIN Ø§Ù„Ù…Ø¯ÙŠØ±.
           </Typography>
           <TextField
-            label="اكتب كلمة حذف"
+            label="Ø§ÙƒØªØ¨ ÙƒÙ„Ù…Ø© Ø­Ø°Ù"
             value={deleteWord}
-            onChange={(e) => setDeleteWord(e.target.value)}
+            onChange={(event) => setDeleteWord(event.target.value)}
             disabled={deleting}
           />
           <TextField
-            label="PIN المدير"
+            label="PIN Ø§Ù„Ù…Ø¯ÙŠØ±"
+            type="password"
             value={deletePin}
-            onChange={(e) => setDeletePin(e.target.value)}
+            onChange={(event) => setDeletePin(event.target.value)}
             disabled={deleting}
           />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteOpen(false)} disabled={deleting}>
-            إلغاء
+            Ø¥Ù„ØºØ§Ø¡
           </Button>
-          <Button color="error" variant="contained" onClick={handleDelete} disabled={!deleteAllowed || deleting}>
-            حذف
+          <Button color="error" variant="contained" onClick={handleDelete} disabled={deleting || deleteWord.trim() !== 'Ø­Ø°Ù'}>
+            Ø­Ø°Ù
           </Button>
         </DialogActions>
       </Dialog>
+
+      <UnknownCardDialog
+        open={Boolean(unknownCardId)}
+        cardId={unknownCardId ?? ''}
+        onCreateMember={() => {
+          if (!unknownCardId) return;
+          setPendingCardId(unknownCardId);
+          setUnknownCardId(null);
+          setCreateFromUnknownOpen(true);
+        }}
+        onLinkExisting={() => {
+          if (!unknownCardId) return;
+          setPendingCardId(unknownCardId);
+          setUnknownCardId(null);
+          setLinkDialogOpen(true);
+        }}
+        onCancel={() => setUnknownCardId(null)}
+      />
+
+      <MemberDialog
+        open={createFromUnknownOpen}
+        initialCardId={pendingCardId}
+        onClose={() => setCreateFromUnknownOpen(false)}
+        onSubmit={handleCreateMemberFromUnknown}
+      />
+
+      <LinkCardDialog
+        open={linkDialogOpen}
+        cardId={pendingCardId}
+        loading={linking}
+        onCancel={() => setLinkDialogOpen(false)}
+        onLink={handleLinkUnknownToExisting}
+      />
     </Stack>
   );
 }
-

@@ -40,6 +40,7 @@ export interface MemberPayload {
   durationMonths: number;
   notes?: string;
   planId?: number | null;
+  cardId?: string;
 }
 
 export interface RenewalPayload {
@@ -57,6 +58,8 @@ export interface AppSettings {
   devicePort: number;
   deviceName: string;
   enableDeviceListener: boolean;
+  strictMode: boolean;
+  managerPinConfigured: boolean;
 }
 
 export interface PlanDTO {
@@ -99,4 +102,10 @@ export interface EnrollCardResultDTO {
   memberId: number;
   currentOwnerMemberId: number | null;
   currentOwnerName: string | null;
+}
+
+export interface CapturedCardDTO {
+  cardId: string;
+  ownerMemberId: number | null;
+  ownerName: string | null;
 }

@@ -10,6 +10,8 @@ const DEFAULTS: AppSettings = {
   devicePort: 4370,
   deviceName: 'ZKTeco K40',
   enableDeviceListener: true,
+  strictMode: false,
+  managerPinConfigured: false,
 };
 
 export async function getSettings(): Promise<AppSettings> {
@@ -18,7 +20,12 @@ export async function getSettings(): Promise<AppSettings> {
 
   const enabledRaw = (map.get('enableDeviceListener') ?? String(DEFAULTS.enableDeviceListener)).toLowerCase();
   const enableDeviceListener = enabledRaw === 'true' || enabledRaw === '1';
+
+  const strictRaw = (map.get('strictMode') ?? String(DEFAULTS.strictMode)).toLowerCase();
+  const strictMode = strictRaw === 'true' || strictRaw === '1';
+
   const port = Number(map.get('devicePort') ?? DEFAULTS.devicePort);
+  const managerPinConfigured = Boolean(map.get('managerPinHash')?.trim());
 
   return {
     expiringSoonDays: Number(map.get('expiringSoonDays') ?? DEFAULTS.expiringSoonDays),
@@ -28,6 +35,8 @@ export async function getSettings(): Promise<AppSettings> {
     devicePort: Number.isFinite(port) ? Math.max(1, Math.min(port, 65535)) : DEFAULTS.devicePort,
     deviceName: map.get('deviceName') ?? DEFAULTS.deviceName,
     enableDeviceListener,
+    strictMode,
+    managerPinConfigured,
   };
 }
 
@@ -37,8 +46,12 @@ export async function updateSettings(next: Partial<AppSettings>): Promise<AppSet
     deviceIp: next.deviceIp?.trim(),
     deviceName: next.deviceName?.trim() || undefined,
     devicePort: next.devicePort !== undefined ? Math.max(1, Math.min(Number(next.devicePort), 65535)) : undefined,
+    strictMode: next.strictMode !== undefined ? Boolean(next.strictMode) : undefined,
   };
-  const entries = Object.entries(normalized).filter(([, v]) => v !== undefined);
+
+  delete normalized.managerPinConfigured;
+
+  const entries = Object.entries(normalized).filter(([, value]) => value !== undefined);
 
   await Promise.all(
     entries.map(([key, value]) =>

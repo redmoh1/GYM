@@ -1,8 +1,9 @@
-import type { CheckinDTO, CheckinResult, EnrollCardResultDTO, K40ListenerStateDTO } from '@gym/shared';
+import type { CapturedCardDTO, CheckinDTO, CheckinResult, EnrollCardResultDTO, K40ListenerStateDTO } from '@gym/shared';
 
 import log from 'electron-log';
 
 import { ensureRuntimeSchema, prisma } from '../db/client';
+import { requireManagerPinForTransfer, requireManagerPinIfStrict } from './security.service';
 import { getSettings } from './settings.service';
 import { type K40ListenerState, type RawK40Event, zkK40ListenerService } from './zk-k40-listener.service';
 
@@ -26,6 +27,15 @@ interface EnrollmentWaiter {
   timeout: NodeJS.Timeout;
   resolve: (cardId: string) => void;
   reject: (error: Error) => void;
+}
+
+interface CheckinInsertPayload {
+  memberId: number | null;
+  cardId: string;
+  deviceName: string;
+  checkedAt: string;
+  result: CheckinResult;
+  reason: string;
 }
 
 export class K40AccessService {
@@ -99,7 +109,7 @@ export class K40AccessService {
 
     this.enrollmentWaiters.forEach((waiter) => {
       clearTimeout(waiter.timeout);
-      waiter.reject(new Error('تم إيقاف مستمع الجهاز.'));
+      waiter.reject(new Error('Device listener stopped.'));
     });
     this.enrollmentWaiters.clear();
   }
@@ -131,17 +141,46 @@ export class K40AccessService {
     return rows.map((row) => this.mapCheckinRow(row));
   }
 
-  async enrollMemberCard(memberId: number, timeoutSeconds = 10): Promise<EnrollCardResultDTO> {
+  async captureNextCard(timeoutSeconds = 10): Promise<CapturedCardDTO> {
     await this.ensureEnrollmentReady();
     const cardId = await this.waitForNextCard(timeoutSeconds);
-    return this.assignCardToMember(memberId, cardId, false);
+
+    const ownerRows = await prisma.$queryRawUnsafe<Array<{ id: number; fullName: string }>>(
+      `SELECT id, fullName FROM "Member" WHERE "cardId" = ? LIMIT 1`,
+      cardId,
+    );
+    const owner = ownerRows[0] ?? null;
+
+    return {
+      cardId,
+      ownerMemberId: owner?.id ?? null,
+      ownerName: owner?.fullName ?? null,
+    };
   }
 
-  async assignCardToMember(memberId: number, cardId: string, forceTransfer = false): Promise<EnrollCardResultDTO> {
+  async enrollMemberCard(memberId: number, timeoutSeconds = 10, managerPin?: string): Promise<EnrollCardResultDTO> {
+    await this.ensureEnrollmentReady();
+    await requireManagerPinIfStrict('Enroll card', managerPin);
+    const cardId = await this.waitForNextCard(timeoutSeconds);
+    return this.assignCardToMember(memberId, cardId, false, managerPin);
+  }
+
+  async assignCardToMember(
+    memberId: number,
+    cardId: string,
+    forceTransfer = false,
+    managerPin?: string,
+  ): Promise<EnrollCardResultDTO> {
     await ensureRuntimeSchema();
     const normalizedCardId = cardId.trim();
     if (!normalizedCardId) {
-      throw new Error('معرف البطاقة فارغ.');
+      throw new Error('Card ID is required.');
+    }
+
+    if (forceTransfer) {
+      await requireManagerPinForTransfer(managerPin);
+    } else {
+      await requireManagerPinIfStrict('Link card to member', managerPin);
     }
 
     const memberRows = await prisma.$queryRawUnsafe<Array<{ id: number }>>(
@@ -149,7 +188,7 @@ export class K40AccessService {
       memberId,
     );
     if (!memberRows[0]) {
-      throw new Error('تعذر العثور على اللاعب المستهدف.');
+      throw new Error('Target member not found.');
     }
 
     const ownerRows = await prisma.$queryRawUnsafe<Array<{ id: number; fullName: string }>>(
@@ -182,14 +221,45 @@ export class K40AccessService {
     };
   }
 
+  async recordManualCheckin(memberId: number, cardId: string, result: CheckinResult, reason: string): Promise<CheckinDTO> {
+    await ensureRuntimeSchema();
+
+    const memberRows = await prisma.$queryRawUnsafe<Array<{ id: number; cardId: string }>>(
+      `SELECT id, cardId FROM "Member" WHERE id = ? LIMIT 1`,
+      memberId,
+    );
+    const member = memberRows[0];
+    if (!member) {
+      throw new Error('Member not found.');
+    }
+
+    const settings = await getSettings();
+    const normalizedCard = cardId.trim() || member.cardId.trim();
+    if (!normalizedCard) {
+      throw new Error('Card ID is required for check-in record.');
+    }
+
+    const inserted = await this.insertAndFetchCheckin({
+      memberId: member.id,
+      cardId: normalizedCard,
+      deviceName: settings.deviceName,
+      checkedAt: new Date().toISOString(),
+      result,
+      reason,
+    });
+
+    this.checkinSubscribers.forEach((subscriber) => subscriber(inserted));
+    return inserted;
+  }
+
   private async ensureEnrollmentReady(): Promise<void> {
     await ensureRuntimeSchema();
     const settings = await getSettings();
     if (!settings.enableDeviceListener) {
-      throw new Error('ميزة الاستماع للجهاز معطلة من الإعدادات.');
+      throw new Error('Device listener is disabled in settings.');
     }
     if (!settings.deviceIp.trim()) {
-      throw new Error('يرجى إدخال deviceIp في إعدادات الجهاز.');
+      throw new Error('Please configure device IP in settings.');
     }
   }
 
@@ -208,7 +278,7 @@ export class K40AccessService {
           reject(error);
         },
         timeout: setTimeout(() => {
-          waiter.reject(new Error('انتهت المهلة: لم يتم التقاط بطاقة خلال 10 ثوانٍ.'));
+          waiter.reject(new Error('Timed out: no card detected within the requested window.'));
         }, timeoutMs),
       };
       this.enrollmentWaiters.add(waiter);
@@ -228,7 +298,6 @@ export class K40AccessService {
     );
 
     const member = memberRows[0] ?? null;
-    const checkedAtIso = event.timestamp.toISOString();
     let result: CheckinResult = 'UNKNOWN';
     let reason = 'البطاقة غير مسجلة';
     let memberId: number | null = null;
@@ -240,22 +309,37 @@ export class K40AccessService {
       reason = isActive ? 'اشتراك ساري' : 'اشتراك منتهي';
     }
 
+    const payload = await this.insertAndFetchCheckin({
+      memberId,
+      cardId: event.cardId,
+      deviceName: settings.deviceName,
+      checkedAt: event.timestamp.toISOString(),
+      result,
+      reason,
+    });
+
+    this.checkinSubscribers.forEach((subscriber) => subscriber(payload));
+  }
+
+  private async insertAndFetchCheckin(payload: CheckinInsertPayload): Promise<CheckinDTO> {
     await prisma.$executeRawUnsafe(
       `
       INSERT INTO "Checkin" ("memberId", "cardId", "deviceName", "checkedAt", "result", "reason")
       VALUES (?, ?, ?, ?, ?, ?)
       `,
-      memberId,
-      event.cardId,
-      settings.deviceName,
-      checkedAtIso,
-      result,
-      reason,
+      payload.memberId,
+      payload.cardId,
+      payload.deviceName,
+      payload.checkedAt,
+      payload.result,
+      payload.reason,
     );
 
     const idRow = await prisma.$queryRawUnsafe<Array<{ id: number }>>(`SELECT last_insert_rowid() AS id`);
     const insertedId = idRow[0]?.id;
-    if (!insertedId) return;
+    if (!insertedId) {
+      throw new Error('Failed to create checkin record.');
+    }
 
     const insertedRows = await prisma.$queryRawUnsafe<CheckinRow[]>(
       `
@@ -278,11 +362,13 @@ export class K40AccessService {
       `,
       insertedId,
     );
-    const inserted = insertedRows[0];
-    if (!inserted) return;
 
-    const payload = this.mapCheckinRow(inserted);
-    this.checkinSubscribers.forEach((subscriber) => subscriber(payload));
+    const inserted = insertedRows[0];
+    if (!inserted) {
+      throw new Error('Inserted checkin row was not found.');
+    }
+
+    return this.mapCheckinRow(inserted);
   }
 
   private async emitState(listenerState: K40ListenerState): Promise<void> {
@@ -359,4 +445,3 @@ export class K40AccessService {
 }
 
 export const k40AccessService = new K40AccessService();
-
