@@ -11,9 +11,13 @@ model Member {
   id             Int       @id @default(autoincrement())
   fullName       String
   phone          String
+  subscriptionType String  @default("MONTHLY")
   startDate      DateTime
   durationMonths Int       @default(1)
   endDate        DateTime
+  sessionsTotal      Int?
+  sessionsRemaining  Int?
+  sessionsExpiryDate DateTime?
   notes          String    @default("")
   cardId         String    @default("")
   photoPath      String    @default("")
@@ -72,6 +76,7 @@ model Checkin {
   checkedAt  DateTime @default(now())
   result     String
   reason     String
+  consumedSessions Int @default(0)
 
   member Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
 
