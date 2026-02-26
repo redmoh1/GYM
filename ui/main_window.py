@@ -49,7 +49,7 @@ class RenewalDialog(QDialog):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("تجديد الاشتراك")
+        self.setWindowTitle("Ã˜ÂªÃ˜Â¬Ã˜Â¯Ã™Å Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜Â§Ã˜Â´Ã˜ÂªÃ˜Â±Ã˜Â§Ã™Æ’")
         self.setLayoutDirection(Qt.RightToLeft)
         self.setMinimumWidth(300)
 
@@ -58,10 +58,10 @@ class RenewalDialog(QDialog):
         self.months_spin.setValue(1)
 
         form = QFormLayout()
-        form.addRow("عدد الأشهر:", self.months_spin)
+        form.addRow("Ã˜Â¹Ã˜Â¯Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â´Ã™â€¡Ã˜Â±:", self.months_spin)
 
-        ok_btn = QPushButton("تأكيد")
-        cancel_btn = QPushButton("إلغاء")
+        ok_btn = QPushButton("Ã˜ÂªÃ˜Â£Ã™Æ’Ã™Å Ã˜Â¯")
+        cancel_btn = QPushButton("Ã˜Â¥Ã™â€žÃ˜ÂºÃ˜Â§Ã˜Â¡")
         cancel_btn.setObjectName("btnGhost")
         ok_btn.clicked.connect(self.accept)
         cancel_btn.clicked.connect(self.reject)
@@ -87,7 +87,7 @@ class TopUpSessionsDialog(QDialog):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("إضافة حصص")
+        self.setWindowTitle("Ã˜Â¥Ã˜Â¶Ã˜Â§Ã™ÂÃ˜Â© Ã˜Â­Ã˜ÂµÃ˜Âµ")
         self.setLayoutDirection(Qt.RightToLeft)
         self.setMinimumWidth(300)
 
@@ -96,10 +96,10 @@ class TopUpSessionsDialog(QDialog):
         self.sessions_spin.setValue(10)
 
         form = QFormLayout()
-        form.addRow("عدد الحصص:", self.sessions_spin)
+        form.addRow("Ã˜Â¹Ã˜Â¯Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜Â­Ã˜ÂµÃ˜Âµ:", self.sessions_spin)
 
-        ok_btn = QPushButton("تأكيد")
-        cancel_btn = QPushButton("إلغاء")
+        ok_btn = QPushButton("Ã˜ÂªÃ˜Â£Ã™Æ’Ã™Å Ã˜Â¯")
+        cancel_btn = QPushButton("Ã˜Â¥Ã™â€žÃ˜ÂºÃ˜Â§Ã˜Â¡")
         cancel_btn.setObjectName("btnGhost")
         ok_btn.clicked.connect(self.accept)
         cancel_btn.clicked.connect(self.reject)
@@ -127,9 +127,8 @@ class MainWindow(QMainWindow):
         "ID",
         "الاسم",
         "الهاتف",
-        "بداية الاشتراك",
-        "المدة (شهر)",
-        "نهاية الاشتراك",
+        "النوع",
+        "تفاصيل الاشتراك",
         "الحالة",
         "المتبقي",
         "رقم البطاقة",
@@ -153,12 +152,12 @@ class MainWindow(QMainWindow):
         self.pages = QStackedWidget()
 
         self.search_edit = QLineEdit(objectName="searchInput")
-        self.search_edit.setPlaceholderText("ابحث بالاسم أو الهاتف أو رقم البطاقة...")
+        self.search_edit.setPlaceholderText("Ã˜Â§Ã˜Â¨Ã˜Â­Ã˜Â« Ã˜Â¨Ã˜Â§Ã™â€žÃ˜Â§Ã˜Â³Ã™â€¦ Ã˜Â£Ã™Ë† Ã˜Â§Ã™â€žÃ™â€¡Ã˜Â§Ã˜ÂªÃ™Â Ã˜Â£Ã™Ë† Ã˜Â±Ã™â€šÃ™â€¦ Ã˜Â§Ã™â€žÃ˜Â¨Ã˜Â·Ã˜Â§Ã™â€šÃ˜Â©...")
         self.search_edit.addAction(self.style().standardIcon(QStyle.SP_FileDialogContentsView), QLineEdit.LeadingPosition)
 
-        self.add_member_btn = AnimatedButton("+ إضافة لاعب")
+        self.add_member_btn = AnimatedButton("+ Ã˜Â¥Ã˜Â¶Ã˜Â§Ã™ÂÃ˜Â© Ã™â€žÃ˜Â§Ã˜Â¹Ã˜Â¨")
         self.status_filter_combo = QComboBox()
-        self.status_filter_combo.addItems(["الكل", STATUS_ACTIVE, STATUS_EXPIRING, STATUS_EXPIRED])
+        self.status_filter_combo.addItems(["Ã˜Â§Ã™â€žÃ™Æ’Ã™â€ž", STATUS_ACTIVE, STATUS_EXPIRING, STATUS_EXPIRED])
 
         self.all_table = self._build_member_table()
         self.soon_table = self._build_member_table()
@@ -204,7 +203,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(14, 10, 14, 10)
         layout.setSpacing(10)
 
-        title = QLabel("نظام إدارة اشتراكات الجيم", objectName="systemName")
+        title = QLabel("Ã™â€ Ã˜Â¸Ã˜Â§Ã™â€¦ Ã˜Â¥Ã˜Â¯Ã˜Â§Ã˜Â±Ã˜Â© Ã˜Â§Ã˜Â´Ã˜ÂªÃ˜Â±Ã˜Â§Ã™Æ’Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â¬Ã™Å Ã™â€¦", objectName="systemName")
         title.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
         layout.addWidget(title)
@@ -229,13 +228,13 @@ class MainWindow(QMainWindow):
 
         toolbar = QHBoxLayout()
         toolbar.setSpacing(8)
-        toolbar.addWidget(QLabel("فلترة حسب الحالة:", objectName="mutedText"))
+        toolbar.addWidget(QLabel("Ã™ÂÃ™â€žÃ˜ÂªÃ˜Â±Ã˜Â© Ã˜Â­Ã˜Â³Ã˜Â¨ Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â§Ã™â€žÃ˜Â©:", objectName="mutedText"))
         toolbar.addWidget(self.status_filter_combo)
 
-        self.export_btn = QPushButton("تصدير Excel")
+        self.export_btn = QPushButton("Ã˜ÂªÃ˜ÂµÃ˜Â¯Ã™Å Ã˜Â± Excel")
         self.export_btn.setObjectName("btnGhost")
 
-        self.backup_btn = QPushButton("نسخ احتياطي")
+        self.backup_btn = QPushButton("Ã™â€ Ã˜Â³Ã˜Â® Ã˜Â§Ã˜Â­Ã˜ÂªÃ™Å Ã˜Â§Ã˜Â·Ã™Å ")
         self.backup_btn.setObjectName("btnGhost")
 
         toolbar.addStretch()
@@ -251,7 +250,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
-        layout.addWidget(QLabel("الاشتراكات القريبة من الانتهاء", objectName="sectionTitle"))
+        layout.addWidget(QLabel("Ã˜Â§Ã™â€žÃ˜Â§Ã˜Â´Ã˜ÂªÃ˜Â±Ã˜Â§Ã™Æ’Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ™â€šÃ˜Â±Ã™Å Ã˜Â¨Ã˜Â© Ã™â€¦Ã™â€  Ã˜Â§Ã™â€žÃ˜Â§Ã™â€ Ã˜ÂªÃ™â€¡Ã˜Â§Ã˜Â¡", objectName="sectionTitle"))
         layout.addWidget(self.soon_table, 1)
         return page
 
@@ -260,7 +259,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
-        layout.addWidget(QLabel("الاشتراكات المنتهية", objectName="sectionTitle"))
+        layout.addWidget(QLabel("Ã˜Â§Ã™â€žÃ˜Â§Ã˜Â´Ã˜ÂªÃ˜Â±Ã˜Â§Ã™Æ’Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ™â€¦Ã™â€ Ã˜ÂªÃ™â€¡Ã™Å Ã˜Â©", objectName="sectionTitle"))
         layout.addWidget(self.expired_table, 1)
         return page
 
@@ -274,14 +273,14 @@ class MainWindow(QMainWindow):
         data_layout = QVBoxLayout(data_panel)
         data_layout.setContentsMargins(16, 16, 16, 16)
         data_layout.setSpacing(10)
-        data_layout.addWidget(QLabel("الإعدادات العامة", objectName="sectionTitle"))
-        data_layout.addWidget(QLabel("إدارة التصدير والنسخ الاحتياطي.", objectName="mutedText"))
+        data_layout.addWidget(QLabel("Ã˜Â§Ã™â€žÃ˜Â¥Ã˜Â¹Ã˜Â¯Ã˜Â§Ã˜Â¯Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â¹Ã˜Â§Ã™â€¦Ã˜Â©", objectName="sectionTitle"))
+        data_layout.addWidget(QLabel("Ã˜Â¥Ã˜Â¯Ã˜Â§Ã˜Â±Ã˜Â© Ã˜Â§Ã™â€žÃ˜ÂªÃ˜ÂµÃ˜Â¯Ã™Å Ã˜Â± Ã™Ë†Ã˜Â§Ã™â€žÃ™â€ Ã˜Â³Ã˜Â® Ã˜Â§Ã™â€žÃ˜Â§Ã˜Â­Ã˜ÂªÃ™Å Ã˜Â§Ã˜Â·Ã™Å .", objectName="mutedText"))
 
         row = QHBoxLayout()
-        self.settings_export_btn = QPushButton("تصدير البيانات")
+        self.settings_export_btn = QPushButton("Ã˜ÂªÃ˜ÂµÃ˜Â¯Ã™Å Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â¨Ã™Å Ã˜Â§Ã™â€ Ã˜Â§Ã˜Âª")
         self.settings_export_btn.setObjectName("btnGhost")
 
-        self.settings_backup_btn = QPushButton("نسخة احتياطية")
+        self.settings_backup_btn = QPushButton("Ã™â€ Ã˜Â³Ã˜Â®Ã˜Â© Ã˜Â§Ã˜Â­Ã˜ÂªÃ™Å Ã˜Â§Ã˜Â·Ã™Å Ã˜Â©")
         self.settings_backup_btn.setObjectName("btnGhost")
 
         row.addWidget(self.settings_export_btn)
@@ -302,14 +301,14 @@ class MainWindow(QMainWindow):
         form.setVerticalSpacing(10)
 
         self.device_ip_edit = QLineEdit()
-        self.device_ip_edit.setPlaceholderText("مثال: 192.168.1.201")
+        self.device_ip_edit.setPlaceholderText("Ã™â€¦Ã˜Â«Ã˜Â§Ã™â€ž: 192.168.1.201")
 
         self.device_port_spin = QSpinBox()
         self.device_port_spin.setRange(1, 65535)
         self.device_port_spin.setValue(4370)
 
         self.device_name_edit = QLineEdit("ZKTeco K40")
-        self.enable_device_listener_checkbox = QCheckBox("تفعيل الاستماع للجهاز")
+        self.enable_device_listener_checkbox = QCheckBox("Ã˜ÂªÃ™ÂÃ˜Â¹Ã™Å Ã™â€ž Ã˜Â§Ã™â€žÃ˜Â§Ã˜Â³Ã˜ÂªÃ™â€¦Ã˜Â§Ã˜Â¹ Ã™â€žÃ™â€žÃ˜Â¬Ã™â€¡Ã˜Â§Ã˜Â²")
 
         form.addRow("device_ip:", self.device_ip_edit)
         form.addRow("device_port:", self.device_port_spin)
@@ -318,7 +317,7 @@ class MainWindow(QMainWindow):
         device_layout.addLayout(form)
 
         actions = QHBoxLayout()
-        self.save_device_settings_btn = QPushButton("حفظ إعدادات الجهاز")
+        self.save_device_settings_btn = QPushButton("Ã˜Â­Ã™ÂÃ˜Â¸ Ã˜Â¥Ã˜Â¹Ã˜Â¯Ã˜Â§Ã˜Â¯Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€¡Ã˜Â§Ã˜Â²")
         self.save_device_settings_btn.setObjectName("btnGhost")
         self.listener_state_label = QLabel("-")
         self.listener_state_label.setObjectName("mutedText")
@@ -398,7 +397,7 @@ class MainWindow(QMainWindow):
     def _build_actions_cell(self, member_id: int, member_name: str) -> QWidget:
         style = QApplication.style()
 
-        renew_btn = QPushButton("تجديد")
+        renew_btn = QPushButton("Ã˜ÂªÃ˜Â¬Ã˜Â¯Ã™Å Ã˜Â¯")
         renew_btn.setObjectName("btnGhost")
         renew_btn.setIcon(style.standardIcon(QStyle.SP_BrowserReload))
         renew_btn.clicked.connect(lambda: self.renew_member_by_id(member_id, member_name, renew_btn))
@@ -406,13 +405,13 @@ class MainWindow(QMainWindow):
         edit_btn = QPushButton()
         edit_btn.setObjectName("tableIconBtn")
         edit_btn.setIcon(style.standardIcon(QStyle.SP_FileDialogDetailedView))
-        edit_btn.setToolTip("تعديل")
+        edit_btn.setToolTip("Ã˜ÂªÃ˜Â¹Ã˜Â¯Ã™Å Ã™â€ž")
         edit_btn.clicked.connect(lambda: self.edit_member_by_id(member_id))
 
         delete_btn = QPushButton()
         delete_btn.setObjectName("tableDeleteBtn")
         delete_btn.setIcon(style.standardIcon(QStyle.SP_TrashIcon))
-        delete_btn.setToolTip("حذف")
+        delete_btn.setToolTip("Ã˜Â­Ã˜Â°Ã™Â")
         delete_btn.clicked.connect(lambda: self.delete_member_by_id(member_id))
 
         cell = QWidget()
@@ -464,7 +463,7 @@ class MainWindow(QMainWindow):
 
     def _filtered_members(self, members: list[Member]) -> list[Member]:
         selected = self.status_filter_combo.currentText()
-        if selected == "الكل":
+        if selected == "Ã˜Â§Ã™â€žÃ™Æ’Ã™â€ž":
             return members
         return [m for m in members if self._status_from_days(m.days_left) == selected]
 
@@ -499,12 +498,12 @@ class MainWindow(QMainWindow):
         dialog = MemberDialog(self.db, parent=self)
         if dialog.exec():
             self.refresh_all_data()
-            self._show_toast("تمت إضافة اللاعب بنجاح")
+            self._show_toast("Ã˜ÂªÃ™â€¦Ã˜Âª Ã˜Â¥Ã˜Â¶Ã˜Â§Ã™ÂÃ˜Â© Ã˜Â§Ã™â€žÃ™â€žÃ˜Â§Ã˜Â¹Ã˜Â¨ Ã˜Â¨Ã™â€ Ã˜Â¬Ã˜Â§Ã˜Â­")
 
     def edit_member_by_id(self, member_id: int) -> None:
         member = self.db.get_member(member_id)
         if member is None:
-            QMessageBox.warning(self, "خطأ", "تعذر العثور على بيانات اللاعب.")
+            QMessageBox.warning(self, "Ã˜Â®Ã˜Â·Ã˜Â£", "Ã˜ÂªÃ˜Â¹Ã˜Â°Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â¹Ã˜Â«Ã™Ë†Ã˜Â± Ã˜Â¹Ã™â€žÃ™â€° Ã˜Â¨Ã™Å Ã˜Â§Ã™â€ Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ™â€žÃ˜Â§Ã˜Â¹Ã˜Â¨.")
             return
 
         dialog = MemberDialog(
@@ -515,25 +514,25 @@ class MainWindow(QMainWindow):
         )
         if dialog.exec():
             self.refresh_all_data()
-            self._show_toast("تم تعديل بيانات اللاعب")
+            self._show_toast("Ã˜ÂªÃ™â€¦ Ã˜ÂªÃ˜Â¹Ã˜Â¯Ã™Å Ã™â€ž Ã˜Â¨Ã™Å Ã˜Â§Ã™â€ Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ™â€žÃ˜Â§Ã˜Â¹Ã˜Â¨")
 
     def delete_member_by_id(self, member_id: int) -> None:
         confirm = QMessageBox.question(
             self,
-            "تأكيد الحذف",
-            "هل أنت متأكد من حذف اللاعب؟",
+            "Ã˜ÂªÃ˜Â£Ã™Æ’Ã™Å Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜Â­Ã˜Â°Ã™Â",
+            "Ã™â€¡Ã™â€ž Ã˜Â£Ã™â€ Ã˜Âª Ã™â€¦Ã˜ÂªÃ˜Â£Ã™Æ’Ã˜Â¯ Ã™â€¦Ã™â€  Ã˜Â­Ã˜Â°Ã™Â Ã˜Â§Ã™â€žÃ™â€žÃ˜Â§Ã˜Â¹Ã˜Â¨Ã˜Å¸",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
         if confirm == QMessageBox.Yes:
             self.db.delete_member(member_id)
             self.refresh_all_data()
-            self._show_toast("تم حذف اللاعب")
+            self._show_toast("Ã˜ÂªÃ™â€¦ Ã˜Â­Ã˜Â°Ã™Â Ã˜Â§Ã™â€žÃ™â€žÃ˜Â§Ã˜Â¹Ã˜Â¨")
 
     def renew_member_by_id(self, member_id: int, member_name: str | None = None, trigger_btn: QPushButton | None = None) -> None:
         member = self.db.get_member(member_id)
         if member is None:
-            QMessageBox.warning(self, "خطأ", "تعذر العثور على بيانات اللاعب.")
+            QMessageBox.warning(self, "Ã˜Â®Ã˜Â·Ã˜Â£", "Ã˜ÂªÃ˜Â¹Ã˜Â°Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â¹Ã˜Â«Ã™Ë†Ã˜Â± Ã˜Â¹Ã™â€žÃ™â€° Ã˜Â¨Ã™Å Ã˜Â§Ã™â€ Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ™â€žÃ˜Â§Ã˜Â¹Ã˜Â¨.")
             return
 
         name = member_name or member.full_name
@@ -544,8 +543,8 @@ class MainWindow(QMainWindow):
         months = dialog.months
         confirm = QMessageBox.question(
             self,
-            "تأكيد التجديد",
-            f"هل تريد تجديد اشتراك {name} لمدة {months} شهر؟",
+            "Ã˜ÂªÃ˜Â£Ã™Æ’Ã™Å Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â¬Ã˜Â¯Ã™Å Ã˜Â¯",
+            f"Ã™â€¡Ã™â€ž Ã˜ÂªÃ˜Â±Ã™Å Ã˜Â¯ Ã˜ÂªÃ˜Â¬Ã˜Â¯Ã™Å Ã˜Â¯ Ã˜Â§Ã˜Â´Ã˜ÂªÃ˜Â±Ã˜Â§Ã™Æ’ {name} Ã™â€žÃ™â€¦Ã˜Â¯Ã˜Â© {months} Ã˜Â´Ã™â€¡Ã˜Â±Ã˜Å¸",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.Yes,
         )
@@ -558,7 +557,7 @@ class MainWindow(QMainWindow):
             QApplication.processEvents()
             new_end = self.db.renew_subscription(member_id, months)
             self.refresh_all_data()
-            self._show_toast(f"تم تجديد اشتراك اللاعب بنجاح حتى: {new_end}")
+            self._show_toast(f"Ã˜ÂªÃ™â€¦ Ã˜ÂªÃ˜Â¬Ã˜Â¯Ã™Å Ã˜Â¯ Ã˜Â§Ã˜Â´Ã˜ÂªÃ˜Â±Ã˜Â§Ã™Æ’ Ã˜Â§Ã™â€žÃ™â€žÃ˜Â§Ã˜Â¹Ã˜Â¨ Ã˜Â¨Ã™â€ Ã˜Â¬Ã˜Â§Ã˜Â­ Ã˜Â­Ã˜ÂªÃ™â€°: {new_end}")
         finally:
             if trigger_btn is not None:
                 trigger_btn.setEnabled(True)
@@ -583,7 +582,7 @@ class MainWindow(QMainWindow):
         self.device_port_spin.setValue(saved.device_port)
         self.device_name_edit.setText(saved.device_name)
         self.enable_device_listener_checkbox.setChecked(saved.enable_device_listener)
-        self._show_toast("تم حفظ إعدادات الجهاز")
+        self._show_toast("Ã˜ÂªÃ™â€¦ Ã˜Â­Ã™ÂÃ˜Â¸ Ã˜Â¥Ã˜Â¹Ã˜Â¯Ã˜Â§Ã˜Â¯Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€¡Ã˜Â§Ã˜Â²")
 
     def _on_listener_error(self, message: str) -> None:
         self._show_toast(message)
@@ -593,20 +592,20 @@ class MainWindow(QMainWindow):
 
     def _render_listener_state(self, connected: bool, state: str) -> None:
         if connected:
-            self.listener_state_label.setText(f"حالة الجهاز: متصل ({state})")
+            self.listener_state_label.setText(f"Ã˜Â­Ã˜Â§Ã™â€žÃ˜Â© Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€¡Ã˜Â§Ã˜Â²: Ã™â€¦Ã˜ÂªÃ˜ÂµÃ™â€ž ({state})")
             self.listener_state_label.setStyleSheet("color: #16a34a;")
             return
 
         if state == "disabled":
-            text = "حالة الجهاز: معطل من الإعدادات"
+            text = "Ã˜Â­Ã˜Â§Ã™â€žÃ˜Â© Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€¡Ã˜Â§Ã˜Â²: Ã™â€¦Ã˜Â¹Ã˜Â·Ã™â€ž Ã™â€¦Ã™â€  Ã˜Â§Ã™â€žÃ˜Â¥Ã˜Â¹Ã˜Â¯Ã˜Â§Ã˜Â¯Ã˜Â§Ã˜Âª"
         elif state == "missing-ip":
-            text = "حالة الجهاز: أدخل device_ip للاتصال"
+            text = "Ã˜Â­Ã˜Â§Ã™â€žÃ˜Â© Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€¡Ã˜Â§Ã˜Â²: Ã˜Â£Ã˜Â¯Ã˜Â®Ã™â€ž device_ip Ã™â€žÃ™â€žÃ˜Â§Ã˜ÂªÃ˜ÂµÃ˜Â§Ã™â€ž"
         elif state == "reconnecting":
-            text = "حالة الجهاز: إعادة محاولة الاتصال..."
+            text = "Ã˜Â­Ã˜Â§Ã™â€žÃ˜Â© Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€¡Ã˜Â§Ã˜Â²: Ã˜Â¥Ã˜Â¹Ã˜Â§Ã˜Â¯Ã˜Â© Ã™â€¦Ã˜Â­Ã˜Â§Ã™Ë†Ã™â€žÃ˜Â© Ã˜Â§Ã™â€žÃ˜Â§Ã˜ÂªÃ˜ÂµÃ˜Â§Ã™â€ž..."
         elif state == "stopped":
-            text = "حالة الجهاز: متوقف"
+            text = "Ã˜Â­Ã˜Â§Ã™â€žÃ˜Â© Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€¡Ã˜Â§Ã˜Â²: Ã™â€¦Ã˜ÂªÃ™Ë†Ã™â€šÃ™Â"
         else:
-            text = "حالة الجهاز: غير متصل"
+            text = "Ã˜Â­Ã˜Â§Ã™â€žÃ˜Â© Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€¡Ã˜Â§Ã˜Â²: Ã˜ÂºÃ™Å Ã˜Â± Ã™â€¦Ã˜ÂªÃ˜ÂµÃ™â€ž"
 
         self.listener_state_label.setText(text)
         self.listener_state_label.setStyleSheet("color: #b45309;")
@@ -626,17 +625,17 @@ class MainWindow(QMainWindow):
     def enroll_member_card(self, member_id: int) -> str | None:
         settings = self.k40_service.get_settings()
         if not settings.enable_device_listener:
-            QMessageBox.warning(self, "تعذر الربط", "ميزة الاستماع للجهاز معطلة من الإعدادات.")
+            QMessageBox.warning(self, "Ã˜ÂªÃ˜Â¹Ã˜Â°Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â±Ã˜Â¨Ã˜Â·", "Ã™â€¦Ã™Å Ã˜Â²Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â§Ã˜Â³Ã˜ÂªÃ™â€¦Ã˜Â§Ã˜Â¹ Ã™â€žÃ™â€žÃ˜Â¬Ã™â€¡Ã˜Â§Ã˜Â² Ã™â€¦Ã˜Â¹Ã˜Â·Ã™â€žÃ˜Â© Ã™â€¦Ã™â€  Ã˜Â§Ã™â€žÃ˜Â¥Ã˜Â¹Ã˜Â¯Ã˜Â§Ã˜Â¯Ã˜Â§Ã˜Âª.")
             return None
 
         card_id = self._wait_for_next_card()
         if not card_id:
-            QMessageBox.information(self, "انتهت المهلة", "لم يتم التقاط بطاقة خلال 10 ثوانٍ.")
+            QMessageBox.information(self, "Ã˜Â§Ã™â€ Ã˜ÂªÃ™â€¡Ã˜Âª Ã˜Â§Ã™â€žÃ™â€¦Ã™â€¡Ã™â€žÃ˜Â©", "Ã™â€žÃ™â€¦ Ã™Å Ã˜ÂªÃ™â€¦ Ã˜Â§Ã™â€žÃ˜ÂªÃ™â€šÃ˜Â§Ã˜Â· Ã˜Â¨Ã˜Â·Ã˜Â§Ã™â€šÃ˜Â© Ã˜Â®Ã™â€žÃ˜Â§Ã™â€ž 10 Ã˜Â«Ã™Ë†Ã˜Â§Ã™â€ Ã™Â.")
             return None
 
         self.db.link_card_to_member(member_id, card_id)
         self.refresh_all_data()
-        self._show_toast(f"تم ربط البطاقة: {card_id}")
+        self._show_toast(f"Ã˜ÂªÃ™â€¦ Ã˜Â±Ã˜Â¨Ã˜Â· Ã˜Â§Ã™â€žÃ˜Â¨Ã˜Â·Ã˜Â§Ã™â€šÃ˜Â©: {card_id}")
         return card_id
 
     def _wait_for_next_card(self) -> str | None:
@@ -644,7 +643,7 @@ class MainWindow(QMainWindow):
         remaining = {"seconds": 10}
 
         dialog = QDialog(self)
-        dialog.setWindowTitle("ربط بطاقة")
+        dialog.setWindowTitle("Ã˜Â±Ã˜Â¨Ã˜Â· Ã˜Â¨Ã˜Â·Ã˜Â§Ã™â€šÃ˜Â©")
         dialog.setLayoutDirection(Qt.RightToLeft)
         dialog.setMinimumWidth(420)
 
@@ -652,7 +651,7 @@ class MainWindow(QMainWindow):
         message.setWordWrap(True)
         message.setAlignment(Qt.AlignRight)
 
-        cancel_btn = QPushButton("إلغاء")
+        cancel_btn = QPushButton("Ã˜Â¥Ã™â€žÃ˜ÂºÃ˜Â§Ã˜Â¡")
         cancel_btn.setObjectName("btnGhost")
         cancel_btn.clicked.connect(dialog.reject)
 
@@ -663,7 +662,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(cancel_btn, 0, Qt.AlignLeft)
 
         def refresh_message() -> None:
-            message.setText(f"مرّر البطاقة على الجهاز الآن خلال {remaining['seconds']} ثوانٍ.")
+            message.setText(f"Ã™â€¦Ã˜Â±Ã™â€˜Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â¨Ã˜Â·Ã˜Â§Ã™â€šÃ˜Â© Ã˜Â¹Ã™â€žÃ™â€° Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€¡Ã˜Â§Ã˜Â² Ã˜Â§Ã™â€žÃ˜Â¢Ã™â€  Ã˜Â®Ã™â€žÃ˜Â§Ã™â€ž {remaining['seconds']} Ã˜Â«Ã™Ë†Ã˜Â§Ã™â€ Ã™Â.")
 
         def on_tick() -> None:
             remaining["seconds"] -= 1
@@ -696,12 +695,12 @@ class MainWindow(QMainWindow):
     def export_excel(self) -> None:
         rows = self.db.export_rows()
         if not rows:
-            QMessageBox.information(self, "تنبيه", "لا توجد بيانات للتصدير.")
+            QMessageBox.information(self, "Ã˜ÂªÃ™â€ Ã˜Â¨Ã™Å Ã™â€¡", "Ã™â€žÃ˜Â§ Ã˜ÂªÃ™Ë†Ã˜Â¬Ã˜Â¯ Ã˜Â¨Ã™Å Ã˜Â§Ã™â€ Ã˜Â§Ã˜Âª Ã™â€žÃ™â€žÃ˜ÂªÃ˜ÂµÃ˜Â¯Ã™Å Ã˜Â±.")
             return
 
         file_path, _ = QFileDialog.getSaveFileName(
             self,
-            "حفظ ملف Excel",
+            "Ã˜Â­Ã™ÂÃ˜Â¸ Ã™â€¦Ã™â€žÃ™Â Excel",
             str(Path(f"gym_export_{date.today().isoformat()}.xlsx").resolve()),
             "Excel Files (*.xlsx)",
         )
@@ -718,12 +717,12 @@ class MainWindow(QMainWindow):
             sheet.append([row[h] for h in headers])
 
         workbook.save(file_path)
-        self._show_toast("تم تصدير البيانات إلى Excel")
+        self._show_toast("Ã˜ÂªÃ™â€¦ Ã˜ÂªÃ˜ÂµÃ˜Â¯Ã™Å Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â¨Ã™Å Ã˜Â§Ã™â€ Ã˜Â§Ã˜Âª Ã˜Â¥Ã™â€žÃ™â€° Excel")
 
     def backup_database(self) -> None:
         backup_path, _ = QFileDialog.getSaveFileName(
             self,
-            "حفظ النسخة الاحتياطية",
+            "Ã˜Â­Ã™ÂÃ˜Â¸ Ã˜Â§Ã™â€žÃ™â€ Ã˜Â³Ã˜Â®Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â§Ã˜Â­Ã˜ÂªÃ™Å Ã˜Â§Ã˜Â·Ã™Å Ã˜Â©",
             str(Path(f"gym_backup_{date.today().isoformat()}.db").resolve()),
             "Database Files (*.db)",
         )
@@ -731,7 +730,7 @@ class MainWindow(QMainWindow):
             return
 
         self.db.backup_database(backup_path)
-        self._show_toast("تم إنشاء النسخة الاحتياطية")
+        self._show_toast("Ã˜ÂªÃ™â€¦ Ã˜Â¥Ã™â€ Ã˜Â´Ã˜Â§Ã˜Â¡ Ã˜Â§Ã™â€žÃ™â€ Ã˜Â³Ã˜Â®Ã˜Â© Ã˜Â§Ã™â€žÃ˜Â§Ã˜Â­Ã˜ÂªÃ™Å Ã˜Â§Ã˜Â·Ã™Å Ã˜Â©")
 
     def closeEvent(self, event) -> None:  # noqa: N802
         self.k40_service.stop()
