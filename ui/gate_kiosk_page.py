@@ -35,8 +35,9 @@ class GateKioskWidget(QWidget):
         self.name_label = QLabel("-")
         self.phone_label = QLabel("-")
         self.card_label = QLabel("-")
-        self.end_label = QLabel("-")
-        self.days_left_label = QLabel("-")
+        self.subscription_type_label = QLabel("-")
+        self.subscription_details_label = QLabel("-")
+        self.remaining_or_expiry_label = QLabel("-")
         self.reason_label = QLabel("-")
         self.last_seen_label = QLabel("بانتظار تمرير بطاقة...")
         self.last_seen_label.setObjectName("mutedText")
@@ -55,8 +56,9 @@ class GateKioskWidget(QWidget):
         info_col.addWidget(self._row("الاسم", self.name_label))
         info_col.addWidget(self._row("الهاتف", self.phone_label))
         info_col.addWidget(self._row("رقم البطاقة", self.card_label))
-        info_col.addWidget(self._row("تاريخ الانتهاء", self.end_label))
-        info_col.addWidget(self._row("الأيام المتبقية", self.days_left_label))
+        info_col.addWidget(self._row("نوع الاشتراك", self.subscription_type_label))
+        info_col.addWidget(self._row("تفاصيل الاشتراك", self.subscription_details_label))
+        info_col.addWidget(self._row("المتبقي/انتهاء الباقة", self.remaining_or_expiry_label))
         info_col.addWidget(self._row("السبب", self.reason_label))
         info_col.addWidget(self.last_seen_label)
         info_col.addStretch()
@@ -108,8 +110,18 @@ class GateKioskWidget(QWidget):
         self.phone_label.setText(event.member_phone or "-")
         self.card_label.setText(event.card_id or "-")
         self.reason_label.setText(event.reason or "-")
-        self.end_label.setText(event.member_end_date or "-")
-        self.days_left_label.setText("-" if event.days_left is None else str(event.days_left))
+
+        if event.subscription_type == "SESSIONS":
+            total = int(event.sessions_total or 0)
+            remaining = int(event.sessions_remaining or 0)
+            self.subscription_type_label.setText("حصص")
+            self.subscription_details_label.setText(f"المتبقي {remaining} / الإجمالي {total}")
+            self.remaining_or_expiry_label.setText(event.sessions_expiry_date or "-")
+        else:
+            self.subscription_type_label.setText("شهري")
+            self.subscription_details_label.setText(f"ينتهي: {event.member_end_date or '-'}")
+            self.remaining_or_expiry_label.setText("-" if event.days_left is None else str(event.days_left))
+
         self.last_seen_label.setText(f"آخر تمرير: {event.checked_at}")
         self._set_avatar(event.photo_path)
 
@@ -181,4 +193,3 @@ class GateKioskWidget(QWidget):
         if normalized == "DENY":
             return QColor("#dc2626")
         return QColor("#6b7280")
-

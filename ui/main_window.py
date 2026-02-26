@@ -396,8 +396,10 @@ class MainWindow(QMainWindow):
 
     def _build_actions_cell(self, member_id: int, member_name: str) -> QWidget:
         style = QApplication.style()
+        member = self.db.get_member(member_id)
+        renew_text = "إضافة حصص" if member is not None and member.subscription_type == "SESSIONS" else "تجديد شهري"
 
-        renew_btn = QPushButton("Ã˜ÂªÃ˜Â¬Ã˜Â¯Ã™Å Ã˜Â¯")
+        renew_btn = QPushButton(renew_text)
         renew_btn.setObjectName("btnGhost")
         renew_btn.setIcon(style.standardIcon(QStyle.SP_BrowserReload))
         renew_btn.clicked.connect(lambda: self.renew_member_by_id(member_id, member_name, renew_btn))
@@ -428,7 +430,7 @@ class MainWindow(QMainWindow):
         table.setRowCount(len(members))
 
         for row, member in enumerate(members):
-            status = self._status_from_days(member.days_left)
+            status = member.status
             row_bg = self._status_bg(status)
             status_fg = self._status_color(status)
 
@@ -436,11 +438,11 @@ class MainWindow(QMainWindow):
                 str(member.id),
                 member.full_name,
                 member.phone,
-                member.start_date,
-                str(member.duration_months),
-                member.end_date,
+                "حصص" if member.subscription_type == "SESSIONS" else "شهري",
+                str(member.sessions_total or 0) if member.subscription_type == "SESSIONS" else str(member.duration_months),
+                (member.sessions_expiry_date or "-") if member.subscription_type == "SESSIONS" else member.end_date,
                 status,
-                str(member.days_left),
+                str(member.sessions_remaining or 0) if member.subscription_type == "SESSIONS" else str(member.days_left),
                 member.card_id or "-",
                 member.notes,
             ]
@@ -453,7 +455,16 @@ class MainWindow(QMainWindow):
                 if col == 6:
                     item.setForeground(status_fg)
                 if col == 7:
-                    item.setForeground(self.dashboard._days_color(member.days_left))
+                    if member.subscription_type == "SESSIONS":
+                        remaining = int(member.sessions_remaining or 0)
+                        if remaining == 0:
+                            item.setForeground(QColor("#dc2626"))
+                        elif remaining <= 3:
+                            item.setForeground(QColor("#f59e0b"))
+                        else:
+                            item.setForeground(QColor("#16a34a"))
+                    else:
+                        item.setForeground(self.dashboard._days_color(member.days_left))
                 item.setBackground(row_bg)
                 table.setItem(row, col, item)
 
@@ -463,16 +474,16 @@ class MainWindow(QMainWindow):
 
     def _filtered_members(self, members: list[Member]) -> list[Member]:
         selected = self.status_filter_combo.currentText()
-        if selected == "Ã˜Â§Ã™â€žÃ™Æ’Ã™â€ž":
+        if selected == self.status_filter_combo.itemText(0):
             return members
-        return [m for m in members if self._status_from_days(m.days_left) == selected]
+        return [m for m in members if m.status == selected]
 
     def refresh_all_data(self) -> None:
         search_members = self.db.search_members(self.search_edit.text().strip())
         all_members = self._filtered_members(search_members)
 
-        soon = sorted([member for member in search_members if 0 <= member.days_left <= 7], key=lambda member: member.days_left)
-        expired = sorted([member for member in search_members if member.days_left < 0], key=lambda member: member.days_left)
+        soon = sorted([member for member in search_members if member.status == STATUS_EXPIRING], key=lambda member: member.days_left)
+        expired = sorted([member for member in search_members if member.status == STATUS_EXPIRED], key=lambda member: member.days_left)
 
         self._populate_member_table(self.all_table, all_members)
         self._populate_member_table(self.soon_table, soon)
@@ -532,10 +543,38 @@ class MainWindow(QMainWindow):
     def renew_member_by_id(self, member_id: int, member_name: str | None = None, trigger_btn: QPushButton | None = None) -> None:
         member = self.db.get_member(member_id)
         if member is None:
-            QMessageBox.warning(self, "Ã˜Â®Ã˜Â·Ã˜Â£", "Ã˜ÂªÃ˜Â¹Ã˜Â°Ã˜Â± Ã˜Â§Ã™â€žÃ˜Â¹Ã˜Â«Ã™Ë†Ã˜Â± Ã˜Â¹Ã™â€žÃ™â€° Ã˜Â¨Ã™Å Ã˜Â§Ã™â€ Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ™â€žÃ˜Â§Ã˜Â¹Ã˜Â¨.")
+            QMessageBox.warning(self, "Error", "Member not found.")
             return
 
         name = member_name or member.full_name
+
+        if member.subscription_type == "SESSIONS":
+            dialog = TopUpSessionsDialog(self)
+            if not dialog.exec():
+                return
+            sessions = dialog.sessions
+            confirm = QMessageBox.question(
+                self,
+                "Confirm Top-up",
+                f"Add {sessions} sessions to {name}?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes,
+            )
+            if confirm != QMessageBox.Yes:
+                return
+
+            if trigger_btn is not None:
+                trigger_btn.setEnabled(False)
+            try:
+                QApplication.processEvents()
+                new_remaining = self.db.top_up_sessions(member_id, sessions, increase_total=True)
+                self.refresh_all_data()
+                self._show_toast(f"Sessions added. Remaining: {new_remaining}")
+            finally:
+                if trigger_btn is not None:
+                    trigger_btn.setEnabled(True)
+            return
+
         dialog = RenewalDialog(self)
         if not dialog.exec():
             return
@@ -543,8 +582,8 @@ class MainWindow(QMainWindow):
         months = dialog.months
         confirm = QMessageBox.question(
             self,
-            "Ã˜ÂªÃ˜Â£Ã™Æ’Ã™Å Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â¬Ã˜Â¯Ã™Å Ã˜Â¯",
-            f"Ã™â€¡Ã™â€ž Ã˜ÂªÃ˜Â±Ã™Å Ã˜Â¯ Ã˜ÂªÃ˜Â¬Ã˜Â¯Ã™Å Ã˜Â¯ Ã˜Â§Ã˜Â´Ã˜ÂªÃ˜Â±Ã˜Â§Ã™Æ’ {name} Ã™â€žÃ™â€¦Ã˜Â¯Ã˜Â© {months} Ã˜Â´Ã™â€¡Ã˜Â±Ã˜Å¸",
+            "Confirm Renewal",
+            f"Renew monthly subscription for {name} by {months} month(s)?",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.Yes,
         )
@@ -557,7 +596,7 @@ class MainWindow(QMainWindow):
             QApplication.processEvents()
             new_end = self.db.renew_subscription(member_id, months)
             self.refresh_all_data()
-            self._show_toast(f"Ã˜ÂªÃ™â€¦ Ã˜ÂªÃ˜Â¬Ã˜Â¯Ã™Å Ã˜Â¯ Ã˜Â§Ã˜Â´Ã˜ÂªÃ˜Â±Ã˜Â§Ã™Æ’ Ã˜Â§Ã™â€žÃ™â€žÃ˜Â§Ã˜Â¹Ã˜Â¨ Ã˜Â¨Ã™â€ Ã˜Â¬Ã˜Â§Ã˜Â­ Ã˜Â­Ã˜ÂªÃ™â€°: {new_end}")
+            self._show_toast(f"Renewed successfully until: {new_end}")
         finally:
             if trigger_btn is not None:
                 trigger_btn.setEnabled(True)
@@ -612,6 +651,7 @@ class MainWindow(QMainWindow):
 
     def _on_checkin_processed(self, event: CheckinEvent) -> None:
         self.gate_widget.show_checkin(event)
+        self.refresh_all_data()
         self.switch_page("gate")
 
         if event.result == "ALLOW":
