@@ -1,6 +1,14 @@
 import { create } from 'zustand';
 
-import type { AppSettings, DashboardDTO, MemberDTO, MemberPayload, MembersQuery, RenewalPayload } from '@gym/shared';
+import type {
+  AppSettings,
+  DashboardDTO,
+  MemberDTO,
+  MemberPayload,
+  MembersQuery,
+  RenewalPayload,
+  SessionsTopUpPayload,
+} from '@gym/shared';
 
 import { api } from '../lib/api';
 
@@ -17,6 +25,7 @@ interface GymState {
   updateMember: (id: number, payload: MemberPayload) => Promise<void>;
   deleteMember: (id: number, managerPin?: string) => Promise<void>;
   renewMember: (payload: RenewalPayload) => Promise<MemberDTO>;
+  topUpSessions: (payload: SessionsTopUpPayload) => Promise<MemberDTO>;
   updateSettings: (payload: Partial<AppSettings>) => Promise<void>;
 }
 
@@ -62,6 +71,14 @@ export const useGymStore = create<GymState>((set) => ({
   },
   renewMember: async (payload) => {
     const updated = await api.members.renew(payload);
+    const query = useGymStore.getState().lastMembersQuery;
+    const members = await api.members.list(query);
+    const dashboard = await api.dashboard.get();
+    set({ members, dashboard });
+    return updated;
+  },
+  topUpSessions: async (payload) => {
+    const updated = await api.members.topUpSessions(payload);
     const query = useGymStore.getState().lastMembersQuery;
     const members = await api.members.list(query);
     const dashboard = await api.dashboard.get();

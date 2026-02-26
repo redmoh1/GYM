@@ -8,6 +8,7 @@ import { getSettings } from './settings.service';
 import { type K40ListenerState, type RawK40Event, zkK40ListenerService } from './zk-k40-listener.service';
 
 type Unsubscribe = () => void;
+type SqlClient = typeof prisma;
 
 interface CheckinRow {
   id: number;
@@ -20,6 +21,11 @@ interface CheckinRow {
   memberName: string | null;
   memberPhone: string | null;
   memberEndDate: string | Date | null;
+  memberSubscriptionType: 'MONTHLY' | 'SESSIONS' | null;
+  memberSessionsTotal: number | null;
+  memberSessionsRemaining: number | null;
+  memberSessionsExpiryDate: string | Date | null;
+  consumedSessions: number | null;
   photoPath: string | null;
 }
 
@@ -36,6 +42,7 @@ interface CheckinInsertPayload {
   checkedAt: string;
   result: CheckinResult;
   reason: string;
+  consumedSessions: number;
 }
 
 export class K40AccessService {
@@ -127,9 +134,14 @@ export class K40AccessService {
         c.checkedAt AS checkedAt,
         c.result AS result,
         c.reason AS reason,
+        c.consumedSessions AS consumedSessions,
         m.fullName AS memberName,
         m.phone AS memberPhone,
         m.endDate AS memberEndDate,
+        m.subscriptionType AS memberSubscriptionType,
+        m.sessionsTotal AS memberSessionsTotal,
+        m.sessionsRemaining AS memberSessionsRemaining,
+        m.sessionsExpiryDate AS memberSessionsExpiryDate,
         m.photoPath AS photoPath
       FROM "Checkin" c
       LEFT JOIN "Member" m ON m.id = c.memberId
@@ -237,6 +249,7 @@ export class K40AccessService {
       checkedAt: new Date().toISOString(),
       result,
       reason,
+      consumedSessions: 0,
     });
 
     this.checkinSubscribers.forEach((subscriber) => subscriber(inserted));
@@ -283,21 +296,88 @@ export class K40AccessService {
     }
 
     const settings = await getSettings();
-    const memberRows = await prisma.$queryRawUnsafe<Array<{ id: number; endDate: string | Date }>>(
-      `SELECT id, endDate FROM "Member" WHERE "cardId" = ? LIMIT 1`,
+    const memberRows = await prisma.$queryRawUnsafe<
+      Array<{
+        id: number;
+        endDate: string | Date;
+        subscriptionType: 'MONTHLY' | 'SESSIONS' | null;
+        sessionsRemaining: number | null;
+        sessionsExpiryDate: string | Date | null;
+      }>
+    >(
+      `SELECT id, endDate, subscriptionType, sessionsRemaining, sessionsExpiryDate FROM "Member" WHERE "cardId" = ? LIMIT 1`,
       event.cardId,
     );
 
     const member = memberRows[0] ?? null;
     let result: CheckinResult = 'UNKNOWN';
     let reason = 'البطاقة غير مسجلة';
+    let consumedSessions = 0;
     let memberId: number | null = null;
 
     if (member) {
       memberId = member.id;
-      const isActive = this.isActive(this.normalizeDateString(member.endDate));
-      result = isActive ? 'ALLOW' : 'DENY';
-      reason = isActive ? 'اشتراك ساري' : 'اشتراك منتهي';
+      const subscriptionType = member.subscriptionType ?? 'MONTHLY';
+
+      if (subscriptionType === 'SESSIONS') {
+        const remaining = Math.max(0, Number(member.sessionsRemaining ?? 0));
+        const expiryIso = member.sessionsExpiryDate ? this.normalizeDateString(member.sessionsExpiryDate) : null;
+        const expiredByDate = expiryIso ? this.isDateInPast(expiryIso) : false;
+
+        if (expiredByDate) {
+          result = 'DENY';
+          reason = 'انتهت صلاحية باقة الحصص';
+        } else if (remaining <= 0) {
+          result = 'DENY';
+          reason = 'رصيد الحصص = 0';
+        } else {
+          const checkin = await prisma.$transaction(async (tx) => {
+            const updated = await tx.$executeRawUnsafe(
+              `
+              UPDATE "Member"
+              SET "sessionsRemaining" = "sessionsRemaining" - 1, "updatedAt" = CURRENT_TIMESTAMP
+              WHERE id = ? AND COALESCE("sessionsRemaining", 0) > 0
+              `,
+              member.id,
+            );
+
+            if (updated > 0) {
+              return this.insertAndFetchCheckin(
+                {
+                  memberId: member.id,
+                  cardId: event.cardId,
+                  deviceName: settings.deviceName,
+                  checkedAt: event.timestamp.toISOString(),
+                  result: 'ALLOW',
+                  reason: 'تم خصم حصة',
+                  consumedSessions: 1,
+                },
+                tx as SqlClient,
+              );
+            }
+
+            return this.insertAndFetchCheckin(
+              {
+                memberId: member.id,
+                cardId: event.cardId,
+                deviceName: settings.deviceName,
+                checkedAt: event.timestamp.toISOString(),
+                result: 'DENY',
+                reason: 'رصيد الحصص = 0',
+                consumedSessions: 0,
+              },
+              tx as SqlClient,
+            );
+          });
+
+          this.checkinSubscribers.forEach((subscriber) => subscriber(checkin));
+          return;
+        }
+      } else {
+        const isActive = this.isActive(this.normalizeDateString(member.endDate));
+        result = isActive ? 'ALLOW' : 'DENY';
+        reason = isActive ? 'اشتراك ساري' : 'اشتراك منتهي';
+      }
     }
 
     const payload = await this.insertAndFetchCheckin({
@@ -307,16 +387,17 @@ export class K40AccessService {
       checkedAt: event.timestamp.toISOString(),
       result,
       reason,
+      consumedSessions,
     });
 
     this.checkinSubscribers.forEach((subscriber) => subscriber(payload));
   }
 
-  private async insertAndFetchCheckin(payload: CheckinInsertPayload): Promise<CheckinDTO> {
-    await prisma.$executeRawUnsafe(
+  private async insertAndFetchCheckin(payload: CheckinInsertPayload, client: SqlClient = prisma): Promise<CheckinDTO> {
+    await client.$executeRawUnsafe(
       `
-      INSERT INTO "Checkin" ("memberId", "cardId", "deviceName", "checkedAt", "result", "reason")
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO "Checkin" ("memberId", "cardId", "deviceName", "checkedAt", "result", "reason", "consumedSessions")
+      VALUES (?, ?, ?, ?, ?, ?, ?)
       `,
       payload.memberId,
       payload.cardId,
@@ -324,15 +405,16 @@ export class K40AccessService {
       payload.checkedAt,
       payload.result,
       payload.reason,
+      payload.consumedSessions,
     );
 
-    const idRow = await prisma.$queryRawUnsafe<Array<{ id: number }>>(`SELECT last_insert_rowid() AS id`);
+    const idRow = await client.$queryRawUnsafe<Array<{ id: number }>>(`SELECT last_insert_rowid() AS id`);
     const insertedId = idRow[0]?.id;
     if (!insertedId) {
       throw new Error('Failed to create checkin record.');
     }
 
-    const insertedRows = await prisma.$queryRawUnsafe<CheckinRow[]>(
+    const insertedRows = await client.$queryRawUnsafe<CheckinRow[]>(
       `
       SELECT
         c.id AS id,
@@ -342,9 +424,14 @@ export class K40AccessService {
         c.checkedAt AS checkedAt,
         c.result AS result,
         c.reason AS reason,
+        c.consumedSessions AS consumedSessions,
         m.fullName AS memberName,
         m.phone AS memberPhone,
         m.endDate AS memberEndDate,
+        m.subscriptionType AS memberSubscriptionType,
+        m.sessionsTotal AS memberSessionsTotal,
+        m.sessionsRemaining AS memberSessionsRemaining,
+        m.sessionsExpiryDate AS memberSessionsExpiryDate,
         m.photoPath AS photoPath
       FROM "Checkin" c
       LEFT JOIN "Member" m ON m.id = c.memberId
@@ -399,10 +486,16 @@ export class K40AccessService {
   private mapCheckinRow(row: CheckinRow): CheckinDTO {
     const checkedAt = this.normalizeDateString(row.checkedAt);
     const memberEndDate = row.memberEndDate ? this.normalizeDateString(row.memberEndDate) : null;
+    const memberSessionsExpiryDate = row.memberSessionsExpiryDate ? this.normalizeDateString(row.memberSessionsExpiryDate) : null;
+    const memberSubscriptionType = row.memberSubscriptionType ?? null;
     const daysLeft =
-      memberEndDate && this.isValidDate(memberEndDate)
-        ? Math.ceil((new Date(memberEndDate).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86400000)
-        : null;
+      memberSubscriptionType === 'SESSIONS'
+        ? memberSessionsExpiryDate && this.isValidDate(memberSessionsExpiryDate)
+          ? Math.ceil((new Date(memberSessionsExpiryDate).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86400000)
+          : null
+        : memberEndDate && this.isValidDate(memberEndDate)
+          ? Math.ceil((new Date(memberEndDate).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86400000)
+          : null;
 
     return {
       id: row.id,
@@ -410,6 +503,11 @@ export class K40AccessService {
       memberName: row.memberName ?? '',
       memberPhone: row.memberPhone ?? '',
       memberEndDate,
+      memberSubscriptionType,
+      memberSessionsTotal: row.memberSessionsTotal ?? null,
+      memberSessionsRemaining: row.memberSessionsRemaining ?? null,
+      memberSessionsExpiryDate,
+      consumedSessions: Number(row.consumedSessions ?? 0),
       daysLeft,
       photoPath: row.photoPath ?? '',
       cardId: row.cardId,
@@ -427,6 +525,15 @@ export class K40AccessService {
     end.setHours(0, 0, 0, 0);
     today.setHours(0, 0, 0, 0);
     return end >= today;
+  }
+
+  private isDateInPast(dateValue: string): boolean {
+    if (!this.isValidDate(dateValue)) return false;
+    const target = new Date(dateValue);
+    const today = new Date();
+    target.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    return today > target;
   }
 
   private isValidDate(value: string): boolean {

@@ -28,6 +28,18 @@ export async function ensureRuntimeSchema(): Promise<void> {
   if (!(await hasColumn('Member', 'photoPath'))) {
     await prisma.$executeRawUnsafe(`ALTER TABLE "Member" ADD COLUMN "photoPath" TEXT NOT NULL DEFAULT ''`);
   }
+  if (!(await hasColumn('Member', 'subscriptionType'))) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Member" ADD COLUMN "subscriptionType" TEXT NOT NULL DEFAULT 'MONTHLY'`);
+  }
+  if (!(await hasColumn('Member', 'sessionsTotal'))) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Member" ADD COLUMN "sessionsTotal" INTEGER`);
+  }
+  if (!(await hasColumn('Member', 'sessionsRemaining'))) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Member" ADD COLUMN "sessionsRemaining" INTEGER`);
+  }
+  if (!(await hasColumn('Member', 'sessionsExpiryDate'))) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Member" ADD COLUMN "sessionsExpiryDate" DATETIME`);
+  }
 
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Member_cardId_idx" ON "Member"("cardId")`);
 
@@ -40,9 +52,19 @@ export async function ensureRuntimeSchema(): Promise<void> {
       "checkedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "result" TEXT NOT NULL,
       "reason" TEXT NOT NULL,
+      "consumedSessions" INTEGER NOT NULL DEFAULT 0,
       CONSTRAINT "Checkin_memberId_fkey" FOREIGN KEY ("memberId") REFERENCES "Member" ("id") ON DELETE SET NULL ON UPDATE CASCADE
     )
   `);
+  if (!(await hasColumn('Checkin', 'consumedSessions'))) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Checkin" ADD COLUMN "consumedSessions" INTEGER NOT NULL DEFAULT 0`);
+  }
+  if (!(await hasColumn('Checkin', 'reason'))) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Checkin" ADD COLUMN "reason" TEXT NOT NULL DEFAULT ''`);
+  }
+  if (!(await hasColumn('Checkin', 'result'))) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Checkin" ADD COLUMN "result" TEXT NOT NULL DEFAULT 'UNKNOWN'`);
+  }
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Checkin_checkedAt_idx" ON "Checkin"("checkedAt")`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Checkin_memberId_idx" ON "Checkin"("memberId")`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Checkin_cardId_idx" ON "Checkin"("cardId")`);

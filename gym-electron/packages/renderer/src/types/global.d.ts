@@ -10,6 +10,7 @@ import type {
   MemberPayload,
   MembersQuery,
   RenewalPayload,
+  SessionsTopUpPayload,
 } from '@gym/shared';
 
 declare global {
@@ -22,6 +23,7 @@ declare global {
         update: (id: number, payload: MemberPayload) => Promise<MemberDTO>;
         delete: (id: number, managerPin?: string) => Promise<void>;
         renew: (payload: RenewalPayload) => Promise<MemberDTO>;
+        topUpSessions: (payload: SessionsTopUpPayload) => Promise<MemberDTO>;
       };
       dashboard: { get: () => Promise<DashboardDTO> };
       settings: {

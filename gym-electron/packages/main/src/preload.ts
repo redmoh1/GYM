@@ -12,6 +12,7 @@ import type {
   MemberPayload,
   MembersQuery,
   RenewalPayload,
+  SessionsTopUpPayload,
 } from '@gym/shared';
 
 const api = {
@@ -24,6 +25,8 @@ const api = {
       ipcRenderer.invoke('members:update', id, payload) as Promise<MemberDTO>,
     delete: (id: number, managerPin?: string) => ipcRenderer.invoke('members:delete', id, managerPin) as Promise<void>,
     renew: (payload: RenewalPayload) => ipcRenderer.invoke('members:renew', payload) as Promise<MemberDTO>,
+    topUpSessions: (payload: SessionsTopUpPayload) =>
+      ipcRenderer.invoke('members:topup-sessions', payload) as Promise<MemberDTO>,
   },
   dashboard: {
     get: () => ipcRenderer.invoke('dashboard:get') as Promise<DashboardDTO>,

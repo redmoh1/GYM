@@ -1,19 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { AppSettings, MemberDTO, MemberPayload } from '@gym/shared';
-import {
-  Alert,
-  Button,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  MenuItem,
-  Stack,
-  TextField,
-  Typography,
-} from '@mui/material';
+import { Alert, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField } from '@mui/material';
 
 type CaptureState = 'idle' | 'waiting' | 'captured' | 'duplicate' | 'timeout' | 'error';
 
@@ -30,8 +18,12 @@ function defaultForm(): MemberPayload {
   return {
     fullName: '',
     phone: '',
+    subscriptionType: 'MONTHLY',
     startDate: new Date().toISOString().slice(0, 10),
     durationMonths: 1,
+    sessionsTotal: null,
+    sessionsRemaining: null,
+    sessionsExpiryDate: null,
     notes: '',
     planId: null,
     cardId: '',
@@ -51,13 +43,7 @@ export function MemberDialog({ open, member, initialCardId, onClose, onSubmit, o
   const [cardId, setCardId] = useState('');
   const [captureState, setCaptureState] = useState<CaptureState>('idle');
   const [captureMessage, setCaptureMessage] = useState('');
-  const [captureOwnerName, setCaptureOwnerName] = useState<string | null>(null);
   const captureRequestRef = useRef(0);
-
-  const [bindingOpen, setBindingOpen] = useState(false);
-  const [bindingSecondsLeft, setBindingSecondsLeft] = useState(10);
-  const [bindingError, setBindingError] = useState<string | null>(null);
-  const timerRef = useRef<number | null>(null);
 
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [managerPinForNoCard, setManagerPinForNoCard] = useState('');
@@ -74,9 +60,8 @@ export function MemberDialog({ open, member, initialCardId, onClose, onSubmit, o
 
     setCardId('');
     setForm((prev) => ({ ...prev, cardId: '' }));
-    setCaptureOwnerName(null);
     setCaptureState('waiting');
-    setCaptureMessage('في انتظار تمرير البطاقة...');
+    setCaptureMessage('Waiting for card...');
 
     try {
       const captured = await window.api.k40.captureCard(10);
@@ -84,8 +69,7 @@ export function MemberDialog({ open, member, initialCardId, onClose, onSubmit, o
 
       if (captured.ownerMemberId) {
         setCaptureState('duplicate');
-        setCaptureOwnerName(captured.ownerName || null);
-        setCaptureMessage(`هذه البطاقة مرتبطة باللاعب: ${captured.ownerName ?? `#${captured.ownerMemberId}`}`);
+        setCaptureMessage(`Card already linked to: ${captured.ownerName ?? `#${captured.ownerMemberId}`}`);
         setCardId(captured.cardId);
         setForm((prev) => ({ ...prev, cardId: captured.cardId }));
         return;
@@ -94,15 +78,15 @@ export function MemberDialog({ open, member, initialCardId, onClose, onSubmit, o
       setCardId(captured.cardId);
       setForm((prev) => ({ ...prev, cardId: captured.cardId }));
       setCaptureState('captured');
-      setCaptureMessage('تم التقاط البطاقة بنجاح.');
+      setCaptureMessage('Card captured.');
     } catch (error) {
       if (requestId !== captureRequestRef.current) return;
 
       if (isTimeoutError(error)) {
         setCaptureState('timeout');
-        setCaptureMessage('لم يتم التقاط بطاقة خلال 10 ثوانٍ.');
+        setCaptureMessage('No card detected within 10 seconds.');
       } else {
-        const message = error instanceof Error ? error.message : 'تعذر الاستماع لبطاقة جديدة.';
+        const message = error instanceof Error ? error.message : 'Card capture failed.';
         setCaptureState('error');
         setCaptureMessage(message);
       }
@@ -113,27 +97,25 @@ export function MemberDialog({ open, member, initialCardId, onClose, onSubmit, o
     if (!open) return;
 
     setErrorText(null);
-    setBindingError(null);
     setManagerPinForNoCard('');
-
-    void (async () => {
-      const appSettings = await window.api.settings.get();
-      setSettings(appSettings);
-    })();
+    void window.api.settings.get().then((s) => setSettings(s));
 
     if (member) {
       setForm({
         fullName: member.fullName,
         phone: member.phone,
+        subscriptionType: member.subscriptionType,
         startDate: member.startDate,
         durationMonths: member.durationMonths,
+        sessionsTotal: member.sessionsTotal,
+        sessionsRemaining: member.sessionsRemaining,
+        sessionsExpiryDate: member.sessionsExpiryDate,
         notes: member.notes,
         planId: member.planId,
         cardId: member.cardId ?? '',
       });
       setCardId(member.cardId ?? '');
       setCaptureState('idle');
-      setCaptureOwnerName(null);
       setCaptureMessage('');
       return;
     }
@@ -141,28 +123,19 @@ export function MemberDialog({ open, member, initialCardId, onClose, onSubmit, o
     const initial = (initialCardId ?? '').trim();
     setForm({ ...defaultForm(), cardId: initial });
     setCardId(initial);
-    setCaptureOwnerName(null);
 
     if (initial) {
       setCaptureState('captured');
-      setCaptureMessage('تم تجهيز البطاقة للربط.');
-      return;
+      setCaptureMessage('Card prepared.');
+    } else {
+      void startCapture();
     }
-
-    void startCapture();
   }, [open, member, initialCardId]);
-
-  useEffect(() => {
-    return () => {
-      captureRequestRef.current += 1;
-      if (timerRef.current) window.clearInterval(timerRef.current);
-    };
-  }, []);
 
   const saveBlockedReason = useMemo(() => {
     if (!isCreateMode) return null;
-    if (captureState === 'duplicate') return 'لا يمكن الحفظ ببطاقة مكررة.';
-    if (strictMode && !cardId && !managerPinForNoCard.trim()) return 'في strict_mode: أدخل PIN المدير للحفظ بدون بطاقة.';
+    if (captureState === 'duplicate') return 'Cannot save with duplicate card.';
+    if (strictMode && !cardId && !managerPinForNoCard.trim()) return 'Manager PIN required to save without card.';
     return null;
   }, [isCreateMode, captureState, strictMode, cardId, managerPinForNoCard]);
 
@@ -171,12 +144,19 @@ export function MemberDialog({ open, member, initialCardId, onClose, onSubmit, o
     setErrorText(null);
 
     if (!form.fullName.trim()) {
-      setErrorText('الرجاء إدخال الاسم الكامل');
+      setErrorText('Please enter full name.');
       return;
     }
-
+    if (!form.phone.trim()) {
+      setErrorText('Please enter phone.');
+      return;
+    }
     if (saveBlockedReason) {
       setErrorText(saveBlockedReason);
+      return;
+    }
+    if (form.subscriptionType === 'SESSIONS' && Number(form.sessionsTotal ?? 0) <= 0) {
+      setErrorText('Sessions total must be greater than zero.');
       return;
     }
 
@@ -189,13 +169,17 @@ export function MemberDialog({ open, member, initialCardId, onClose, onSubmit, o
           phone: form.phone.trim(),
           notes: form.notes?.trim() ?? '',
           cardId: cardId.trim(),
+          durationMonths: form.subscriptionType === 'MONTHLY' ? Number(form.durationMonths || 1) : 0,
+          sessionsTotal: form.subscriptionType === 'SESSIONS' ? Number(form.sessionsTotal ?? 0) : null,
+          sessionsRemaining: form.subscriptionType === 'SESSIONS' ? Number(form.sessionsRemaining ?? form.sessionsTotal ?? 0) : null,
+          sessionsExpiryDate: form.subscriptionType === 'SESSIONS' ? form.sessionsExpiryDate ?? null : null,
         },
         isCreateMode && !cardId.trim() ? managerPinForNoCard.trim() : undefined,
       );
       onClose();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'فشل حفظ بيانات اللاعب';
-      setErrorText(`خطأ: ${message}`);
+      const message = error instanceof Error ? error.message : 'Failed to save member';
+      setErrorText(message);
     } finally {
       setSaving(false);
     }
@@ -203,190 +187,152 @@ export function MemberDialog({ open, member, initialCardId, onClose, onSubmit, o
 
   const bindCard = async () => {
     if (!member || !onBindCard) return;
-
-    setBindingError(null);
-    setBindingSecondsLeft(10);
-    setBindingOpen(true);
-
-    if (timerRef.current) window.clearInterval(timerRef.current);
-    timerRef.current = window.setInterval(() => {
-      setBindingSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-
-    try {
-      const linkedCard = await onBindCard(member.id);
-      setCardId(linkedCard);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'تعذر ربط البطاقة';
-      setBindingError(message);
-    } finally {
-      if (timerRef.current) window.clearInterval(timerRef.current);
-      timerRef.current = null;
-      setBindingOpen(false);
-    }
+    const linkedCard = await onBindCard(member.id);
+    setCardId(linkedCard);
   };
 
   return (
-    <>
-      <Dialog open={open} onClose={saving ? undefined : onClose} fullWidth maxWidth="sm">
-        <DialogTitle>{member ? 'تعديل لاعب' : 'إضافة لاعب'}</DialogTitle>
-        <DialogContent sx={{ display: 'grid', gap: 2, pt: 2 }}>
-          {errorText && <Alert severity="error">{errorText}</Alert>}
-          {bindingError && <Alert severity="error">{bindingError}</Alert>}
+    <Dialog open={open} onClose={saving ? undefined : onClose} fullWidth maxWidth="sm">
+      <DialogTitle>{member ? 'Edit Member' : 'Add Member'}</DialogTitle>
+      <DialogContent sx={{ display: 'grid', gap: 2, pt: 2 }}>
+        {errorText && <Alert severity="error">{errorText}</Alert>}
 
-          {isCreateMode && (
-            <Stack spacing={1} sx={{ border: '1px solid #E2E8F0', borderRadius: 2, p: 1.5 }}>
-              <Typography fontWeight={800}>ربط البطاقة</Typography>
-
-              <Stack direction="row" spacing={1} alignItems="center">
-                {captureState === 'waiting' && <CircularProgress size={18} />}
-                <Typography color={captureState === 'duplicate' ? 'error.main' : 'text.secondary'}>
-                  {captureMessage || 'في انتظار تمرير البطاقة...'}
-                </Typography>
-              </Stack>
-
-              <TextField label="card_id" value={cardId || '-'} InputProps={{ readOnly: true }} fullWidth />
-
-              {captureState === 'duplicate' && (
-                <Alert severity="error">هذه البطاقة مرتبطة باللاعب: {captureOwnerName || 'غير معروف'}</Alert>
-              )}
-
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Button variant="outlined" onClick={() => void startCapture()} disabled={captureState === 'waiting'}>
-                  إعادة المحاولة
+        {isCreateMode && (
+          <Stack spacing={1} sx={{ border: '1px solid #E2E8F0', borderRadius: 2, p: 1.5 }}>
+            <Stack direction="row" spacing={1} alignItems="center">
+              {captureState === 'waiting' && <CircularProgress size={18} />}
+              <span>{captureMessage || 'Waiting for card...'}</span>
+            </Stack>
+            <TextField label="card_id" value={cardId || '-'} InputProps={{ readOnly: true }} fullWidth />
+            <Stack direction="row" spacing={1}>
+              <Button variant="outlined" onClick={() => void startCapture()} disabled={captureState === 'waiting'}>
+                Retry
+              </Button>
+              {allowSkip && (
+                <Button
+                  variant="text"
+                  onClick={() => {
+                    captureRequestRef.current += 1;
+                    setCardId('');
+                    setForm((prev) => ({ ...prev, cardId: '' }));
+                    setCaptureState('idle');
+                    setCaptureMessage('Skipped.');
+                  }}
+                  disabled={captureState === 'waiting'}
+                >
+                  Skip
                 </Button>
-
-                {allowSkip && (
-                  <Button
-                    variant="text"
-                    onClick={() => {
-                      captureRequestRef.current += 1;
-                      setCardId('');
-                      setForm((prev) => ({ ...prev, cardId: '' }));
-                      setCaptureState('idle');
-                      setCaptureMessage('تم التخطي.');
-                    }}
-                    disabled={captureState === 'waiting'}
-                  >
-                    تخطي
-                  </Button>
-                )}
-
-                {captureState === 'duplicate' && (
-                  <Button
-                    color="warning"
-                    onClick={() => {
-                      setCardId('');
-                      setForm((prev) => ({ ...prev, cardId: '' }));
-                      void startCapture();
-                    }}
-                  >
-                    استخدم بطاقة أخرى
-                  </Button>
-                )}
-
-                {captureState === 'duplicate' && (
-                  <Button color="inherit" onClick={onClose}>
-                    إلغاء
-                  </Button>
-                )}
-              </Stack>
-
-              {strictMode && !cardId && (
-                <TextField
-                  type="password"
-                  label="PIN المدير (مطلوب للحفظ بدون بطاقة)"
-                  value={managerPinForNoCard}
-                  onChange={(event) => setManagerPinForNoCard(event.target.value)}
-                />
               )}
             </Stack>
-          )}
+            {strictMode && !cardId && (
+              <TextField
+                type="password"
+                label="Manager PIN (required if no card)"
+                value={managerPinForNoCard}
+                onChange={(event) => setManagerPinForNoCard(event.target.value)}
+              />
+            )}
+          </Stack>
+        )}
 
-          <TextField
-            label="الاسم الكامل"
-            value={form.fullName}
-            onChange={(event) => {
-              setErrorText(null);
-              setForm({ ...form, fullName: event.target.value });
-            }}
-          />
+        <TextField label="Full Name" value={form.fullName} onChange={(event) => setForm({ ...form, fullName: event.target.value })} />
+        <TextField label="Phone" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
 
-          <TextField
-            label="الهاتف"
-            value={form.phone}
-            onChange={(event) => {
-              setErrorText(null);
-              setForm({ ...form, phone: event.target.value });
-            }}
-          />
+        <TextField
+          select
+          label="Subscription Type"
+          value={form.subscriptionType}
+          onChange={(event) => {
+            const nextType = event.target.value as 'MONTHLY' | 'SESSIONS';
+            setForm((prev) => ({
+              ...prev,
+              subscriptionType: nextType,
+              durationMonths: nextType === 'MONTHLY' ? Math.max(1, Number(prev.durationMonths || 1)) : 0,
+              sessionsTotal: nextType === 'SESSIONS' ? Number(prev.sessionsTotal ?? 10) : null,
+              sessionsRemaining:
+                nextType === 'SESSIONS'
+                  ? isCreateMode
+                    ? Number(prev.sessionsTotal ?? 10)
+                    : Number(prev.sessionsRemaining ?? prev.sessionsTotal ?? 0)
+                  : null,
+              sessionsExpiryDate: nextType === 'SESSIONS' ? prev.sessionsExpiryDate ?? null : null,
+            }));
+          }}
+        >
+          <MenuItem value="MONTHLY">اشتراك شهري</MenuItem>
+          <MenuItem value="SESSIONS">اشتراك بالحصص</MenuItem>
+        </TextField>
 
-          <TextField
-            type="date"
-            label="تاريخ البداية"
-            value={form.startDate}
-            InputLabelProps={{ shrink: true }}
-            onChange={(event) => {
-              setErrorText(null);
-              setForm({ ...form, startDate: event.target.value });
-            }}
-          />
+        {form.subscriptionType === 'MONTHLY' ? (
+          <>
+            <TextField
+              type="date"
+              label="Start Date"
+              value={form.startDate}
+              InputLabelProps={{ shrink: true }}
+              onChange={(event) => setForm({ ...form, startDate: event.target.value })}
+            />
+            <TextField select label="Months" value={form.durationMonths} onChange={(event) => setForm({ ...form, durationMonths: Number(event.target.value) })}>
+              {[1, 2, 3, 6, 12].map((months) => (
+                <MenuItem key={months} value={months}>
+                  {months}
+                </MenuItem>
+              ))}
+            </TextField>
+          </>
+        ) : (
+          <>
+            <TextField
+              type="number"
+              label="Sessions Total"
+              value={form.sessionsTotal ?? 10}
+              inputProps={{ min: 1 }}
+              onChange={(event) => {
+                const total = Math.max(1, Number(event.target.value || 1));
+                setForm((prev) => ({
+                  ...prev,
+                  sessionsTotal: total,
+                  sessionsRemaining: isCreateMode ? total : Number(prev.sessionsRemaining ?? total),
+                }));
+              }}
+            />
+            <TextField
+              type="number"
+              label="Sessions Remaining"
+              value={form.sessionsRemaining ?? form.sessionsTotal ?? 0}
+              inputProps={{ min: 0 }}
+              disabled={isCreateMode}
+              onChange={(event) => setForm((prev) => ({ ...prev, sessionsRemaining: Math.max(0, Number(event.target.value || 0)) }))}
+            />
+            <TextField
+              type="date"
+              label="Sessions Expiry (optional)"
+              value={form.sessionsExpiryDate ?? ''}
+              InputLabelProps={{ shrink: true }}
+              onChange={(event) => setForm((prev) => ({ ...prev, sessionsExpiryDate: event.target.value || null }))}
+            />
+          </>
+        )}
 
-          <TextField
-            select
-            label="المدة بالأشهر"
-            value={form.durationMonths}
-            onChange={(event) => {
-              setErrorText(null);
-              setForm({ ...form, durationMonths: Number(event.target.value) });
-            }}
-          >
-            {[1, 2, 3, 6, 12].map((months) => (
-              <MenuItem key={months} value={months}>
-                {months}
-              </MenuItem>
-            ))}
-          </TextField>
+        {!isCreateMode && (
+          <Stack spacing={1}>
+            <TextField label="Card" value={cardId || '-'} InputProps={{ readOnly: true }} fullWidth />
+            <Button variant="outlined" onClick={bindCard} disabled={!member || !onBindCard}>
+              Bind Card
+            </Button>
+          </Stack>
+        )}
 
-          {!isCreateMode && (
-            <Stack spacing={0.75}>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
-                <TextField label="رقم البطاقة" value={cardId || '-'} InputProps={{ readOnly: true }} fullWidth />
-                <Button variant="outlined" onClick={bindCard} disabled={!member || !onBindCard} sx={{ minWidth: 130 }}>
-                  ربط بطاقة
-                </Button>
-              </Stack>
-            </Stack>
-          )}
-
-          <TextField
-            label="ملاحظات"
-            value={form.notes}
-            onChange={(event) => {
-              setErrorText(null);
-              setForm({ ...form, notes: event.target.value });
-            }}
-            multiline
-            rows={3}
-          />
-        </DialogContent>
-
-        <DialogActions>
-          <Button onClick={onClose} disabled={saving}>
-            إلغاء
-          </Button>
-          <Button variant="contained" onClick={save} disabled={saving || Boolean(saveBlockedReason)}>
-            {saving ? 'جارٍ الحفظ...' : 'حفظ'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={bindingOpen} onClose={undefined} fullWidth maxWidth="xs">
-        <DialogTitle>ربط بطاقة</DialogTitle>
-        <DialogContent>
-          <Typography>مرّر البطاقة على الجهاز الآن خلال {bindingSecondsLeft} ثوانٍ.</Typography>
-        </DialogContent>
-      </Dialog>
-    </>
+        <TextField label="Notes" value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} multiline rows={3} />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} disabled={saving}>
+          Cancel
+        </Button>
+        <Button variant="contained" onClick={save} disabled={saving || Boolean(saveBlockedReason)}>
+          Save
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }

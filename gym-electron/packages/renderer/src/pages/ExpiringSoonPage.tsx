@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 
+import AddRounded from '@mui/icons-material/AddRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
 import SyncRounded from '@mui/icons-material/SyncRounded';
-import { IconButton, Paper, Stack } from '@mui/material';
+import { Chip, IconButton, Paper, Stack, Typography } from '@mui/material';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 
@@ -10,6 +11,7 @@ import type { MemberDTO, MemberPayload, RenewalPayload } from '@gym/shared';
 
 import { MemberDialog } from '../components/MemberDialog';
 import { RenewMemberDialog } from '../components/RenewMemberDialog';
+import { TopUpSessionsDialog } from '../components/TopUpSessionsDialog';
 import { DeleteMemberIcon } from '../components/icons/DeleteMemberIcon';
 import { enrollCardWithConflictResolution } from '../lib/card-enrollment';
 import { useGymStore } from '../store/useGymStore';
@@ -20,9 +22,11 @@ interface Props {
 
 export function ExpiringSoonPage({ search }: Props) {
   const { enqueueSnackbar } = useSnackbar();
-  const { members, loadMembers, loadDashboard, renewMember, updateMember, deleteMember } = useGymStore();
+  const { members, loadMembers, loadDashboard, renewMember, topUpSessions, updateMember, deleteMember } = useGymStore();
   const [renewTarget, setRenewTarget] = useState<MemberDTO | null>(null);
   const [renewing, setRenewing] = useState(false);
+  const [topUpTarget, setTopUpTarget] = useState<MemberDTO | null>(null);
+  const [topUpLoading, setTopUpLoading] = useState(false);
   const [editing, setEditing] = useState<MemberDTO | null>(null);
   const [editOpen, setEditOpen] = useState(false);
 
@@ -35,7 +39,34 @@ export function ExpiringSoonPage({ search }: Props) {
     { field: 'fullName', headerName: 'الاسم', flex: 1 },
     { field: 'phone', headerName: 'الهاتف', width: 150 },
     { field: 'cardId', headerName: 'البطاقة', width: 160 },
-    { field: 'endDate', headerName: 'تاريخ النهاية', width: 150 },
+    {
+      field: 'subscriptionType',
+      headerName: 'النوع',
+      width: 100,
+      renderCell: (params) => <Chip size="small" label={params.row.subscriptionType === 'SESSIONS' ? 'حصص' : 'شهري'} variant="outlined" />,
+    },
+    {
+      field: 'details',
+      headerName: 'التفاصيل',
+      minWidth: 240,
+      flex: 1,
+      sortable: false,
+      renderCell: (params) => {
+        const row = params.row as MemberDTO;
+        if (row.subscriptionType === 'MONTHLY') return <Typography variant="body2">ينتهي: {row.endDate}</Typography>;
+        const remaining = Number(row.sessionsRemaining ?? 0);
+        const total = Number(row.sessionsTotal ?? 0);
+        const color = remaining <= 0 ? 'error.main' : remaining <= 3 ? 'warning.main' : 'text.primary';
+        return (
+          <Stack>
+            <Typography variant="body2" sx={{ color, fontWeight: 800 }}>
+              المتبقي {remaining} / {total}
+            </Typography>
+            {row.sessionsExpiryDate && <Typography variant="caption">الصلاحية: {row.sessionsExpiryDate}</Typography>}
+          </Stack>
+        );
+      },
+    },
     { field: 'daysLeft', headerName: 'متبقي (يوم)', width: 130 },
     {
       field: 'actions',
@@ -44,10 +75,19 @@ export function ExpiringSoonPage({ search }: Props) {
       sortable: false,
       renderCell: (params) => {
         const row = params.row as MemberDTO;
+        const isSessions = row.subscriptionType === 'SESSIONS';
         return (
           <Stack direction="row" spacing={0.5}>
-            <IconButton size="small" color="primary" disabled={renewing} onClick={() => setRenewTarget(row)}>
-              <SyncRounded fontSize="small" />
+            <IconButton
+              size="small"
+              color="primary"
+              disabled={renewing || topUpLoading}
+              onClick={() => {
+                if (isSessions) setTopUpTarget(row);
+                else setRenewTarget(row);
+              }}
+            >
+              {isSessions ? <AddRounded fontSize="small" /> : <SyncRounded fontSize="small" />}
             </IconButton>
             <IconButton
               size="small"
@@ -97,6 +137,20 @@ export function ExpiringSoonPage({ search }: Props) {
     }
   };
 
+  const handleTopUp = async (sessionsToAdd: number) => {
+    if (!topUpTarget) return;
+    setTopUpLoading(true);
+    try {
+      const updated = await topUpSessions({ memberId: topUpTarget.id, sessionsToAdd });
+      await loadMembers({ search, status: 'ExpiringSoon' });
+      await loadDashboard();
+      enqueueSnackbar(`تمت إضافة الحصص. الرصيد الحالي: ${updated.sessionsRemaining ?? 0}`, { variant: 'success' });
+      setTopUpTarget(null);
+    } finally {
+      setTopUpLoading(false);
+    }
+  };
+
   const bindCard = async (memberId: number): Promise<string> => {
     const cardId = await enrollCardWithConflictResolution(memberId);
     await loadMembers({ search, status: 'ExpiringSoon' });
@@ -134,6 +188,16 @@ export function ExpiringSoonPage({ search }: Props) {
           if (!renewing) setRenewTarget(null);
         }}
         onConfirm={handleRenew}
+      />
+
+      <TopUpSessionsDialog
+        open={Boolean(topUpTarget)}
+        memberName={topUpTarget?.fullName ?? ''}
+        loading={topUpLoading}
+        onClose={() => {
+          if (!topUpLoading) setTopUpTarget(null);
+        }}
+        onConfirm={handleTopUp}
       />
     </Paper>
   );

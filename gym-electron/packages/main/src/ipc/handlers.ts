@@ -20,6 +20,7 @@ import {
   getMemberById,
   listMembers,
   renewMember,
+  topUpMemberSessions,
   updateMember,
 } from '../services/member.service';
 import { k40AccessService } from '../services/k40-access.service';
@@ -34,6 +35,9 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('members:update', async (_, id: number, payload: MemberPayload) => updateMember(id, payload));
   ipcMain.handle('members:delete', async (_, id: number, managerPin?: string) => deleteMember(id, managerPin));
   ipcMain.handle('members:renew', async (_, payload: RenewalPayload) => renewMember(payload));
+  ipcMain.handle('members:topup-sessions', async (_, payload: { memberId: number; sessionsToAdd: number }) =>
+    topUpMemberSessions(payload),
+  );
 
   ipcMain.handle('dashboard:get', async () => getDashboard());
 
