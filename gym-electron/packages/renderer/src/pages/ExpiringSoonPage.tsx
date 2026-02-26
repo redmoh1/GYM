@@ -6,10 +6,11 @@ import { IconButton, Paper, Stack } from '@mui/material';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 
-import type { MemberDTO, MemberPayload } from '@gym/shared';
+import type { MemberDTO, MemberPayload, RenewalPayload } from '@gym/shared';
 
 import { MemberDialog } from '../components/MemberDialog';
 import { RenewMemberDialog } from '../components/RenewMemberDialog';
+import { DeleteMemberIcon } from '../components/icons/DeleteMemberIcon';
 import { enrollCardWithConflictResolution } from '../lib/card-enrollment';
 import { useGymStore } from '../store/useGymStore';
 
@@ -19,7 +20,7 @@ interface Props {
 
 export function ExpiringSoonPage({ search }: Props) {
   const { enqueueSnackbar } = useSnackbar();
-  const { members, loadMembers, loadDashboard, renewMember, updateMember } = useGymStore();
+  const { members, loadMembers, loadDashboard, renewMember, updateMember, deleteMember } = useGymStore();
   const [renewTarget, setRenewTarget] = useState<MemberDTO | null>(null);
   const [renewing, setRenewing] = useState(false);
   const [editing, setEditing] = useState<MemberDTO | null>(null);
@@ -39,7 +40,7 @@ export function ExpiringSoonPage({ search }: Props) {
     {
       field: 'actions',
       headerName: 'إجراءات',
-      width: 150,
+      width: 200,
       sortable: false,
       renderCell: (params) => {
         const row = params.row as MemberDTO;
@@ -57,20 +58,36 @@ export function ExpiringSoonPage({ search }: Props) {
             >
               <EditRounded fontSize="small" />
             </IconButton>
+            <IconButton
+              size="small"
+              color="error"
+              onClick={async () => {
+                if (!window.confirm(`حذف اللاعب: ${row.fullName}؟`)) return;
+                const pin = window.prompt('أدخل PIN المدير للحذف:', '');
+                if (!pin?.trim()) return;
+
+                await deleteMember(row.id, pin.trim());
+                await loadMembers({ search, status: 'ExpiringSoon' });
+                await loadDashboard();
+                enqueueSnackbar('تم حذف اللاعب', { variant: 'success' });
+              }}
+            >
+              <DeleteMemberIcon fontSize="small" />
+            </IconButton>
           </Stack>
         );
       },
     },
   ];
 
-  const handleRenew = async (months: number) => {
+  const handleRenew = async (months: number, startMode: NonNullable<RenewalPayload['startMode']>) => {
     if (!renewTarget) return;
     const ok = window.confirm(`هل تريد تجديد اشتراك (${renewTarget.fullName}) لمدة ${months} شهر؟`);
     if (!ok) return;
 
     setRenewing(true);
     try {
-      const updated = await renewMember({ memberId: renewTarget.id, months });
+      const updated = await renewMember({ memberId: renewTarget.id, months, startMode });
       await loadMembers({ search, status: 'ExpiringSoon' });
       await loadDashboard();
       enqueueSnackbar(`تم تجديد اشتراك اللاعب بنجاح حتى: ${updated.endDate}`, { variant: 'success' });

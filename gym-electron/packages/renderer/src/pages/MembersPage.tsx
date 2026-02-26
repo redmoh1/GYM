@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import DeleteRounded from '@mui/icons-material/DeleteRounded';
 import EditRounded from '@mui/icons-material/EditRounded';
 import PictureAsPdfRounded from '@mui/icons-material/PictureAsPdfRounded';
 import SaveAltRounded from '@mui/icons-material/SaveAltRounded';
@@ -9,10 +8,11 @@ import { Box, IconButton, MenuItem, Paper, Select, Stack } from '@mui/material';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 
-import type { MemberDTO } from '@gym/shared';
+import type { MemberDTO, RenewalPayload } from '@gym/shared';
 
 import { MemberDialog } from '../components/MemberDialog';
 import { RenewMemberDialog } from '../components/RenewMemberDialog';
+import { DeleteMemberIcon } from '../components/icons/DeleteMemberIcon';
 import { api } from '../lib/api';
 import { enrollCardWithConflictResolution } from '../lib/card-enrollment';
 import { useGymStore } from '../store/useGymStore';
@@ -93,7 +93,7 @@ export function MembersPage({ search }: Props) {
                 enqueueSnackbar('تم حذف اللاعب', { variant: 'success' });
               }}
             >
-              <DeleteRounded fontSize="small" />
+              <DeleteMemberIcon fontSize="small" />
             </IconButton>
           </Stack>
         );
@@ -101,14 +101,14 @@ export function MembersPage({ search }: Props) {
     },
   ];
 
-  const handleRenew = async (months: number) => {
+  const handleRenew = async (months: number, startMode: NonNullable<RenewalPayload['startMode']>) => {
     if (!renewTarget) return;
     const ok = window.confirm(`هل تريد تجديد اشتراك (${renewTarget.fullName}) لمدة ${months} شهر؟`);
     if (!ok) return;
 
     setRenewing(true);
     try {
-      const updated = await renewMember({ memberId: renewTarget.id, months });
+      const updated = await renewMember({ memberId: renewTarget.id, months, startMode });
       await loadMembers({ search, status });
       await loadDashboard();
       enqueueSnackbar(`تم تجديد اشتراك اللاعب بنجاح حتى: ${updated.endDate}`, { variant: 'success' });

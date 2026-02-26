@@ -144,12 +144,7 @@ export class K40AccessService {
   async captureNextCard(timeoutSeconds = 10): Promise<CapturedCardDTO> {
     await this.ensureEnrollmentReady();
     const cardId = await this.waitForNextCard(timeoutSeconds);
-
-    const ownerRows = await prisma.$queryRawUnsafe<Array<{ id: number; fullName: string }>>(
-      `SELECT id, fullName FROM "Member" WHERE "cardId" = ? LIMIT 1`,
-      cardId,
-    );
-    const owner = ownerRows[0] ?? null;
+    const owner = await this.getCardOwner(cardId);
 
     return {
       cardId,
@@ -191,11 +186,7 @@ export class K40AccessService {
       throw new Error('Target member not found.');
     }
 
-    const ownerRows = await prisma.$queryRawUnsafe<Array<{ id: number; fullName: string }>>(
-      `SELECT id, fullName FROM "Member" WHERE "cardId" = ? LIMIT 1`,
-      normalizedCardId,
-    );
-    const owner = ownerRows[0] ?? null;
+    const owner = await this.getCardOwner(normalizedCardId);
 
     if (owner && owner.id !== memberId && !forceTransfer) {
       return {
@@ -369,6 +360,14 @@ export class K40AccessService {
     }
 
     return this.mapCheckinRow(inserted);
+  }
+
+  private async getCardOwner(cardId: string): Promise<{ id: number; fullName: string } | null> {
+    const ownerRows = await prisma.$queryRawUnsafe<Array<{ id: number; fullName: string }>>(
+      `SELECT id, fullName FROM "Member" WHERE "cardId" = ? LIMIT 1`,
+      cardId,
+    );
+    return ownerRows[0] ?? null;
   }
 
   private async emitState(listenerState: K40ListenerState): Promise<void> {

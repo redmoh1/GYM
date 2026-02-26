@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   Button,
@@ -20,7 +20,7 @@ import {
 import { useSnackbar } from 'notistack';
 import { useNavigate } from 'react-router-dom';
 
-import type { CheckinDTO, K40ListenerStateDTO, MemberDTO, MemberPayload } from '@gym/shared';
+import type { CheckinDTO, K40ListenerStateDTO, MemberDTO, MemberPayload, RenewalPayload } from '@gym/shared';
 
 import { MemberDialog } from '../components/MemberDialog';
 import { RenewMemberDialog } from '../components/RenewMemberDialog';
@@ -31,11 +31,19 @@ import { api } from '../lib/api';
 import { enrollCardWithConflictResolution } from '../lib/card-enrollment';
 import { useGymStore } from '../store/useGymStore';
 
+const ltrValueSx = { direction: 'ltr', unicodeBidi: 'plaintext', whiteSpace: 'nowrap' } as const;
+
 function formatDateTime(value: string | null): string {
   if (!value) return '-';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString('ar-EG');
+  return new Intl.DateTimeFormat('en-GB', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(parsed);
 }
 
 function rowColor(result: CheckinDTO['result']): string {
@@ -97,17 +105,14 @@ export function GateKioskPage() {
     setActiveMember(member);
   };
 
-  const withStrictPinRetry = async <T,>(
-    action: (pin?: string) => Promise<T>,
-    pinPrompt: string,
-  ): Promise<T> => {
+  const withStrictPinRetry = async <T,>(action: (pin?: string) => Promise<T>, pinPrompt: string): Promise<T> => {
     try {
       return await action(undefined);
     } catch (error) {
       if (!shouldRequestPin(error)) throw error;
       const pin = requestManagerPin(pinPrompt);
       if (!pin) {
-        throw new Error('ØªÙ… Ø¥Ù„ØºØ§Ø¡ Ø§Ù„Ø¹Ù…Ù„ÙŠØ©.');
+        throw new Error('تم إلغاء العملية.');
       }
       return action(pin);
     }
@@ -116,20 +121,20 @@ export function GateKioskPage() {
   const assignCardToMemberFlow = async (memberId: number, cardId: string): Promise<void> => {
     const initial = await withStrictPinRetry(
       async (pin) => api.k40.assignCard(memberId, cardId, false, pin),
-      'Ø£Ø¯Ø®Ù„ PIN Ø§Ù„Ù…Ø¯ÙŠØ± Ù„Ø¥ØªÙ…Ø§Ù… Ø§Ù„Ø±Ø¨Ø·:',
+      'أدخل PIN المدير لإتمام الربط:',
     );
 
     if (initial.status === 'BOUND') return;
 
     const owner = initial.currentOwnerName || `#${initial.currentOwnerMemberId ?? '-'}`;
-    const shouldTransfer = window.confirm(`Ù‡Ø°Ù‡ Ø§Ù„Ø¨Ø·Ø§Ù‚Ø© Ù…Ø±ØªØ¨Ø·Ø© Ø¨Ø§Ù„Ù„Ø§Ø¹Ø¨: ${owner}\nÙ‡Ù„ ØªØ±ÙŠØ¯ Ù†Ù‚Ù„ Ø§Ù„Ø¨Ø·Ø§Ù‚Ø© Ù„Ù‡Ø°Ø§ Ø§Ù„Ù„Ø§Ø¹Ø¨ØŸ`);
+    const shouldTransfer = window.confirm(`هذه البطاقة مرتبطة باللاعب: ${owner}\nهل تريد نقل البطاقة لهذا اللاعب؟`);
     if (!shouldTransfer) {
-      throw new Error('ØªÙ… Ø¥Ù„ØºØ§Ø¡ Ù†Ù‚Ù„ Ø§Ù„Ø¨Ø·Ø§Ù‚Ø©.');
+      throw new Error('تم إلغاء نقل البطاقة.');
     }
 
-    const transferPin = requestManagerPin('Ù†Ù‚Ù„ Ø§Ù„Ø¨Ø·Ø§Ù‚Ø© ÙŠØªØ·Ù„Ø¨ PIN Ø§Ù„Ù…Ø¯ÙŠØ±:');
+    const transferPin = requestManagerPin('نقل البطاقة يتطلب PIN المدير:');
     if (!transferPin) {
-      throw new Error('ØªÙ… Ø¥Ù„ØºØ§Ø¡ Ø§Ù„Ø¹Ù…Ù„ÙŠØ©.');
+      throw new Error('تم إلغاء العملية.');
     }
 
     await api.k40.assignCard(memberId, cardId, true, transferPin);
@@ -171,30 +176,25 @@ export function GateKioskPage() {
     };
   }, []);
 
-  const handleRenew = async (months: number) => {
+  const handleRenew = async (months: number, startMode: NonNullable<RenewalPayload['startMode']>) => {
     if (!activeMember) return;
 
     setRenewing(true);
     try {
-      const updated = await renewMember({ memberId: activeMember.id, months });
+      const updated = await renewMember({ memberId: activeMember.id, months, startMode });
       await loadDashboard();
       await refreshMember(activeMember.id);
 
       if (updated.status !== 'Expired') {
         const cardForAllow = updated.cardId || currentEvent?.cardId || '';
         if (cardForAllow) {
-          const allowCheckin = await api.k40.recordManualCheckin(
-            updated.id,
-            cardForAllow,
-            'ALLOW',
-            'Ø§Ø´ØªØ±Ø§Ùƒ Ø³Ø§Ø±ÙŠ Ø¨Ø¹Ø¯ Ø§Ù„ØªØ¬Ø¯ÙŠØ¯',
-          );
+          const allowCheckin = await api.k40.recordManualCheckin(updated.id, cardForAllow, 'ALLOW', 'اشتراك ساري بعد التجديد');
           setCurrentEvent(allowCheckin);
           setRecent((prev) => [allowCheckin, ...prev.filter((row) => row.id !== allowCheckin.id)].slice(0, 10));
         }
       }
 
-      enqueueSnackbar('ØªÙ… ØªØ¬Ø¯ÙŠØ¯ Ø§Ù„Ø§Ø´ØªØ±Ø§Ùƒ Ø¨Ù†Ø¬Ø§Ø­', { variant: 'success' });
+      enqueueSnackbar('تم تجديد الاشتراك بنجاح', { variant: 'success' });
       setRenewOpen(false);
     } finally {
       setRenewing(false);
@@ -203,11 +203,11 @@ export function GateKioskPage() {
 
   const handleDelete = async () => {
     if (!activeMember || deleting) return;
-    if (deleteWord.trim() !== 'Ø­Ø°Ù') return;
+    if (deleteWord.trim() !== 'حذف') return;
 
     const managerPin = deletePin.trim();
     if (!managerPin) {
-      enqueueSnackbar('PIN Ø§Ù„Ù…Ø¯ÙŠØ± Ù…Ø·Ù„ÙˆØ¨ Ù„Ù„Ø­Ø°Ù.', { variant: 'error' });
+      enqueueSnackbar('PIN المدير مطلوب للحذف.', { variant: 'error' });
       return;
     }
 
@@ -221,9 +221,9 @@ export function GateKioskPage() {
       setDeleteOpen(false);
       setDeleteWord('');
       setDeletePin('');
-      enqueueSnackbar('ØªÙ… Ø­Ø°Ù Ø§Ù„Ù„Ø§Ø¹Ø¨ Ø¨Ù†Ø¬Ø§Ø­', { variant: 'success' });
+      enqueueSnackbar('تم حذف اللاعب بنجاح', { variant: 'success' });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'ØªØ¹Ø°Ø± Ø­Ø°Ù Ø§Ù„Ù„Ø§Ø¹Ø¨';
+      const message = error instanceof Error ? error.message : 'تعذر حذف اللاعب';
       enqueueSnackbar(message, { variant: 'error' });
     } finally {
       setDeleting(false);
@@ -235,7 +235,7 @@ export function GateKioskPage() {
     await refreshMember(memberId);
     await refreshRecent();
     await loadDashboard();
-    enqueueSnackbar(`ØªÙ… Ø±Ø¨Ø· Ø§Ù„Ø¨Ø·Ø§Ù‚Ø©: ${cardId}`, { variant: 'success' });
+    enqueueSnackbar(`تم ربط البطاقة: ${cardId}`, { variant: 'success' });
     return cardId;
   };
 
@@ -270,9 +270,9 @@ export function GateKioskPage() {
       await loadDashboard();
       setUnknownCardId(null);
       setLinkDialogOpen(false);
-      enqueueSnackbar('ØªÙ… Ø±Ø¨Ø· Ø§Ù„Ø¨Ø·Ø§Ù‚Ø© Ø¨Ù†Ø¬Ø§Ø­', { variant: 'success' });
+      enqueueSnackbar('تم ربط البطاقة بنجاح', { variant: 'success' });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'ØªØ¹Ø°Ø± Ø±Ø¨Ø· Ø§Ù„Ø¨Ø·Ø§Ù‚Ø©';
+      const message = error instanceof Error ? error.message : 'تعذر ربط البطاقة';
       enqueueSnackbar(message, { variant: 'error' });
     } finally {
       setLinking(false);
@@ -296,24 +296,24 @@ export function GateKioskPage() {
 
       <Paper sx={{ p: 2, borderRadius: 3, flex: 1, minHeight: 320 }}>
         <Typography fontWeight={800} mb={1.5}>
-          Ø¢Ø®Ø± 10 Ø¹Ù…Ù„ÙŠØ§Øª Ù…Ø±ÙˆØ±
+          آخر 10 عمليات مرور
         </Typography>
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>Ø§Ù„ÙˆÙ‚Øª</TableCell>
-              <TableCell>Ø§Ù„Ø§Ø³Ù…</TableCell>
-              <TableCell>Ø±Ù‚Ù… Ø§Ù„Ø¨Ø·Ø§Ù‚Ø©</TableCell>
-              <TableCell>Ø§Ù„Ø­Ø§Ù„Ø©</TableCell>
-              <TableCell>Ø§Ù„Ø³Ø¨Ø¨</TableCell>
+              <TableCell>الوقت</TableCell>
+              <TableCell>الاسم</TableCell>
+              <TableCell>رقم البطاقة</TableCell>
+              <TableCell>الحالة</TableCell>
+              <TableCell>السبب</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {recent.map((row) => (
               <TableRow key={row.id} hover sx={{ backgroundColor: rowColor(row.result) }}>
-                <TableCell>{formatDateTime(row.checkedAt)}</TableCell>
-                <TableCell>{row.memberName || 'ØºÙŠØ± Ù…Ø¹Ø±ÙˆÙ'}</TableCell>
-                <TableCell>{row.cardId}</TableCell>
+                <TableCell sx={ltrValueSx}>{formatDateTime(row.checkedAt)}</TableCell>
+                <TableCell>{row.memberName || 'غير معروف'}</TableCell>
+                <TableCell sx={ltrValueSx}>{row.cardId}</TableCell>
                 <TableCell>
                   <Chip
                     size="small"
@@ -327,7 +327,7 @@ export function GateKioskPage() {
             {recent.length === 0 && (
               <TableRow>
                 <TableCell colSpan={5} align="center">
-                  Ù„Ø§ ØªÙˆØ¬Ø¯ Ø¹Ù…Ù„ÙŠØ§Øª Ù…Ø±ÙˆØ± Ø¨Ø¹Ø¯.
+                  لا توجد عمليات مرور بعد.
                 </TableCell>
               </TableRow>
             )}
@@ -354,7 +354,7 @@ export function GateKioskPage() {
           await updateMember(activeMember.id, payload);
           await loadDashboard();
           await refreshMember(activeMember.id);
-          enqueueSnackbar('ØªÙ… ØªØ­Ø¯ÙŠØ« Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ù„Ø§Ø¹Ø¨', { variant: 'success' });
+          enqueueSnackbar('تم تحديث بيانات اللاعب', { variant: 'success' });
         }}
         onBindCard={activeMember ? bindCard : undefined}
       />
@@ -365,19 +365,19 @@ export function GateKioskPage() {
         fullWidth
         maxWidth="xs"
       >
-        <DialogTitle>ØªØ£ÙƒÙŠØ¯ Ø­Ø°Ù Ø§Ù„Ù„Ø§Ø¹Ø¨</DialogTitle>
+        <DialogTitle>تأكيد حذف اللاعب</DialogTitle>
         <DialogContent sx={{ display: 'grid', gap: 1.5, pt: 1.5 }}>
           <Typography color="error">
-            Ø³ÙŠØªÙ… Ø­Ø°Ù Ø§Ù„Ù„Ø§Ø¹Ø¨ Ù†Ù‡Ø§Ø¦ÙŠØ§Ù‹. Ø§ÙƒØªØ¨ ÙƒÙ„Ù…Ø© <strong>Ø­Ø°Ù</strong> Ø«Ù… Ø£Ø¯Ø®Ù„ PIN Ø§Ù„Ù…Ø¯ÙŠØ±.
+            سيتم حذف اللاعب نهائياً. اكتب كلمة <strong>حذف</strong> ثم أدخل PIN المدير.
           </Typography>
           <TextField
-            label="Ø§ÙƒØªØ¨ ÙƒÙ„Ù…Ø© Ø­Ø°Ù"
+            label="اكتب كلمة حذف"
             value={deleteWord}
             onChange={(event) => setDeleteWord(event.target.value)}
             disabled={deleting}
           />
           <TextField
-            label="PIN Ø§Ù„Ù…Ø¯ÙŠØ±"
+            label="PIN المدير"
             type="password"
             value={deletePin}
             onChange={(event) => setDeletePin(event.target.value)}
@@ -386,10 +386,10 @@ export function GateKioskPage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteOpen(false)} disabled={deleting}>
-            Ø¥Ù„ØºØ§Ø¡
+            إلغاء
           </Button>
-          <Button color="error" variant="contained" onClick={handleDelete} disabled={deleting || deleteWord.trim() !== 'Ø­Ø°Ù'}>
-            Ø­Ø°Ù
+          <Button color="error" variant="contained" onClick={handleDelete} disabled={deleting || deleteWord.trim() !== 'حذف'}>
+            حذف
           </Button>
         </DialogActions>
       </Dialog>

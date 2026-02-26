@@ -46,6 +46,7 @@ export interface MemberPayload {
 export interface RenewalPayload {
   memberId: number;
   months: number;
+  startMode?: 'from_end_date' | 'from_today';
   amount?: number;
   note?: string;
 }

@@ -85,7 +85,7 @@ export function MemberDialog({ open, member, initialCardId, onClose, onSubmit, o
       if (captured.ownerMemberId) {
         setCaptureState('duplicate');
         setCaptureOwnerName(captured.ownerName || null);
-        setCaptureMessage(`هذه البطاقة مرتبطة باللاعب: ${captured.ownerName ?? '#' + captured.ownerMemberId}`);
+        setCaptureMessage(`هذه البطاقة مرتبطة باللاعب: ${captured.ownerName ?? `#${captured.ownerMemberId}`}`);
         setCardId(captured.cardId);
         setForm((prev) => ({ ...prev, cardId: captured.cardId }));
         return;
@@ -248,19 +248,11 @@ export function MemberDialog({ open, member, initialCardId, onClose, onSubmit, o
               <TextField label="card_id" value={cardId || '-'} InputProps={{ readOnly: true }} fullWidth />
 
               {captureState === 'duplicate' && (
-                <Alert severity="error">
-                  هذه البطاقة مرتبطة باللاعب: {captureOwnerName || 'غير معروف'}
-                </Alert>
+                <Alert severity="error">هذه البطاقة مرتبطة باللاعب: {captureOwnerName || 'غير معروف'}</Alert>
               )}
 
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Button
-                  variant="outlined"
-                  onClick={() => {
-                    void startCapture();
-                  }}
-                  disabled={captureState === 'waiting'}
-                >
+                <Button variant="outlined" onClick={() => void startCapture()} disabled={captureState === 'waiting'}>
                   إعادة المحاولة
                 </Button>
 
@@ -314,18 +306,18 @@ export function MemberDialog({ open, member, initialCardId, onClose, onSubmit, o
           <TextField
             label="الاسم الكامل"
             value={form.fullName}
-            onChange={(e) => {
+            onChange={(event) => {
               setErrorText(null);
-              setForm({ ...form, fullName: e.target.value });
+              setForm({ ...form, fullName: event.target.value });
             }}
           />
 
           <TextField
             label="الهاتف"
             value={form.phone}
-            onChange={(e) => {
+            onChange={(event) => {
               setErrorText(null);
-              setForm({ ...form, phone: e.target.value });
+              setForm({ ...form, phone: event.target.value });
             }}
           />
 
@@ -334,9 +326,9 @@ export function MemberDialog({ open, member, initialCardId, onClose, onSubmit, o
             label="تاريخ البداية"
             value={form.startDate}
             InputLabelProps={{ shrink: true }}
-            onChange={(e) => {
+            onChange={(event) => {
               setErrorText(null);
-              setForm({ ...form, startDate: e.target.value });
+              setForm({ ...form, startDate: event.target.value });
             }}
           />
 
@@ -344,14 +336,14 @@ export function MemberDialog({ open, member, initialCardId, onClose, onSubmit, o
             select
             label="المدة بالأشهر"
             value={form.durationMonths}
-            onChange={(e) => {
+            onChange={(event) => {
               setErrorText(null);
-              setForm({ ...form, durationMonths: Number(e.target.value) });
+              setForm({ ...form, durationMonths: Number(event.target.value) });
             }}
           >
-            {[1, 2, 3, 6, 12].map((m) => (
-              <MenuItem key={m} value={m}>
-                {m}
+            {[1, 2, 3, 6, 12].map((months) => (
+              <MenuItem key={months} value={months}>
+                {months}
               </MenuItem>
             ))}
           </TextField>
@@ -370,9 +362,9 @@ export function MemberDialog({ open, member, initialCardId, onClose, onSubmit, o
           <TextField
             label="ملاحظات"
             value={form.notes}
-            onChange={(e) => {
+            onChange={(event) => {
               setErrorText(null);
-              setForm({ ...form, notes: e.target.value });
+              setForm({ ...form, notes: event.target.value });
             }}
             multiline
             rows={3}

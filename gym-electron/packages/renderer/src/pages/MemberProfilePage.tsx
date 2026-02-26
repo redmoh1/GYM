@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
 import { Avatar, Box, Button, Chip, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
+import { useSnackbar } from 'notistack';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import type { CheckinDTO, MemberDTO } from '@gym/shared';
@@ -39,6 +40,7 @@ function formatDateTime(value: string): string {
 
 export function MemberProfilePage() {
   const navigate = useNavigate();
+  const { enqueueSnackbar } = useSnackbar();
   const { id } = useParams<{ id: string }>();
   const memberId = Number(id);
 
@@ -73,9 +75,26 @@ export function MemberProfilePage() {
           <Typography variant="h5" fontWeight={900}>
             ملف اللاعب
           </Typography>
-          <Button variant="outlined" startIcon={<ArrowBackRounded />} onClick={() => navigate(-1)}>
-            رجوع
-          </Button>
+          <Stack direction="row" spacing={1}>
+            <Button
+              variant="outlined"
+              color="error"
+              onClick={async () => {
+                if (!window.confirm(`حذف اللاعب: ${member.fullName}؟`)) return;
+                const pin = window.prompt('أدخل PIN المدير للحذف:', '');
+                if (!pin?.trim()) return;
+
+                await api.members.delete(member.id, pin.trim());
+                enqueueSnackbar('تم حذف اللاعب', { variant: 'success' });
+                navigate('/members');
+              }}
+            >
+              حذف
+            </Button>
+            <Button variant="outlined" startIcon={<ArrowBackRounded />} onClick={() => navigate(-1)}>
+              رجوع
+            </Button>
+          </Stack>
         </Stack>
 
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }}>
@@ -89,12 +108,24 @@ export function MemberProfilePage() {
               </Typography>
               <Chip label={statusArabic(member.status)} color={statusColor(member.status)} />
             </Stack>
-            <Typography><strong>الهاتف:</strong> {member.phone}</Typography>
-            <Typography><strong>رقم البطاقة:</strong> {member.cardId || '-'}</Typography>
-            <Typography><strong>تاريخ البداية:</strong> {formatDate(member.startDate)}</Typography>
-            <Typography><strong>تاريخ النهاية:</strong> {formatDate(member.endDate)}</Typography>
-            <Typography><strong>الأيام المتبقية:</strong> {member.daysLeft}</Typography>
-            <Typography><strong>الملاحظات:</strong> {member.notes || '-'}</Typography>
+            <Typography>
+              <strong>الهاتف:</strong> {member.phone}
+            </Typography>
+            <Typography>
+              <strong>رقم البطاقة:</strong> {member.cardId || '-'}
+            </Typography>
+            <Typography>
+              <strong>تاريخ البداية:</strong> {formatDate(member.startDate)}
+            </Typography>
+            <Typography>
+              <strong>تاريخ النهاية:</strong> {formatDate(member.endDate)}
+            </Typography>
+            <Typography>
+              <strong>الأيام المتبقية:</strong> {member.daysLeft}
+            </Typography>
+            <Typography>
+              <strong>الملاحظات:</strong> {member.notes || '-'}
+            </Typography>
           </Box>
         </Stack>
       </Paper>
@@ -134,4 +165,3 @@ export function MemberProfilePage() {
     </Stack>
   );
 }
-

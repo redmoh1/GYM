@@ -4,15 +4,7 @@ import BackupRounded from '@mui/icons-material/BackupRounded';
 import LockResetRounded from '@mui/icons-material/LockResetRounded';
 import RestoreRounded from '@mui/icons-material/RestoreRounded';
 import SaveRounded from '@mui/icons-material/SaveRounded';
-import {
-  Button,
-  FormControlLabel,
-  Paper,
-  Stack,
-  Switch,
-  TextField,
-  Typography,
-} from '@mui/material';
+import { Button, FormControlLabel, Paper, Stack, Switch, TextField, Typography } from '@mui/material';
 import { useSnackbar } from 'notistack';
 
 import type { K40ListenerStateDTO } from '@gym/shared';
@@ -117,7 +109,7 @@ export function SettingsPage() {
           type="password"
           value={managerPin}
           onChange={(event) => setManagerPin(event.target.value)}
-          helperText="اتركه فارغًا إذا لا تريد تغييره الآن"
+          helperText="اتركه فارغاً إذا لا تريد تغييره الآن"
         />
 
         <Typography variant="body2" color="text.secondary">

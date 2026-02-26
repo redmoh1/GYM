@@ -11,6 +11,8 @@ interface Props {
   onViewProfile: () => void;
 }
 
+const ltrValueSx = { direction: 'ltr', unicodeBidi: 'plaintext', display: 'inline-block' } as const;
+
 function toFileUrl(pathValue: string): string | undefined {
   if (!pathValue) return undefined;
   return `file:///${pathValue.replace(/\\/g, '/')}`;
@@ -20,7 +22,14 @@ function formatDateTime(value: string | null): string {
   if (!value) return '-';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString('ar-EG');
+
+  return new Intl.DateTimeFormat('en-GB', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(parsed);
 }
 
 function mapResultLabel(result: CheckinDTO['result'] | 'WAITING'): string {
@@ -82,14 +91,41 @@ export function GateProfilePanel({ event, member, listenerState, onRenew, onEdit
           </Stack>
 
           <Stack spacing={0.75}>
-            <Typography><strong>الاسم:</strong> {member?.fullName || event?.memberName || 'غير معروف'}</Typography>
-            <Typography><strong>الهاتف:</strong> {member?.phone || event?.memberPhone || '-'}</Typography>
-            <Typography><strong>رقم البطاقة:</strong> {event?.cardId || member?.cardId || '-'}</Typography>
-            <Typography><strong>تاريخ الانتهاء:</strong> {latestEndDate ? formatDateTime(latestEndDate) : '-'}</Typography>
-            <Typography><strong>الأيام المتبقية:</strong> {latestDaysLeft ?? '-'}</Typography>
-            <Typography><strong>السبب:</strong> {event?.reason || 'بانتظار تمرير بطاقة...'}</Typography>
+            <Typography>
+              <strong>الاسم:</strong> {member?.fullName || event?.memberName || 'غير معروف'}
+            </Typography>
+            <Typography>
+              <strong>الهاتف:</strong>{' '}
+              <Box component="span" sx={ltrValueSx}>
+                {member?.phone || event?.memberPhone || '-'}
+              </Box>
+            </Typography>
+            <Typography>
+              <strong>رقم البطاقة:</strong>{' '}
+              <Box component="span" sx={ltrValueSx}>
+                {event?.cardId || member?.cardId || '-'}
+              </Box>
+            </Typography>
+            <Typography>
+              <strong>تاريخ الانتهاء:</strong>{' '}
+              <Box component="span" sx={ltrValueSx}>
+                {latestEndDate ? formatDateTime(latestEndDate) : '-'}
+              </Box>
+            </Typography>
+            <Typography>
+              <strong>الأيام المتبقية:</strong>{' '}
+              <Box component="span" sx={ltrValueSx}>
+                {latestDaysLeft ?? '-'}
+              </Box>
+            </Typography>
+            <Typography>
+              <strong>السبب:</strong> {event?.reason || 'بانتظار تمرير بطاقة...'}
+            </Typography>
             <Typography color="text.secondary">
-              <strong>آخر عملية:</strong> {event ? formatDateTime(event.checkedAt) : 'بانتظار تمرير بطاقة...'}
+              <strong>آخر عملية:</strong>{' '}
+              <Box component="span" sx={ltrValueSx}>
+                {event ? formatDateTime(event.checkedAt) : 'بانتظار تمرير بطاقة...'}
+              </Box>
             </Typography>
             <Typography color="text.secondary">
               <strong>حالة الجهاز:</strong> {listenerText}

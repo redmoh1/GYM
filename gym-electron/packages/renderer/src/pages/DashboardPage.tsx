@@ -10,11 +10,12 @@ import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { useNavigate } from 'react-router-dom';
 
-import type { MemberDTO, MemberPayload } from '@gym/shared';
+import type { MemberDTO, MemberPayload, RenewalPayload } from '@gym/shared';
 
 import { CardWidget } from '../components/CardWidget';
 import { MemberDialog } from '../components/MemberDialog';
 import { RenewMemberDialog } from '../components/RenewMemberDialog';
+import { DeleteMemberIcon } from '../components/icons/DeleteMemberIcon';
 import { enrollCardWithConflictResolution } from '../lib/card-enrollment';
 import { useGymStore } from '../store/useGymStore';
 
@@ -25,7 +26,7 @@ interface Props {
 export function DashboardPage({ search = '' }: Props) {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
-  const { dashboard, loadDashboard, updateMember, renewMember } = useGymStore();
+  const { dashboard, loadDashboard, updateMember, renewMember, deleteMember } = useGymStore();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<MemberDTO | null>(null);
@@ -71,7 +72,7 @@ export function DashboardPage({ search = '' }: Props) {
     {
       field: 'actions',
       headerName: 'إجراءات',
-      width: 120,
+      width: 170,
       sortable: false,
       filterable: false,
       renderCell: (params) => (
@@ -88,19 +89,35 @@ export function DashboardPage({ search = '' }: Props) {
           >
             <EditRounded fontSize="small" />
           </IconButton>
+          <IconButton
+            size="small"
+            color="error"
+            onClick={async () => {
+              const row = params.row as MemberDTO;
+              if (!window.confirm(`حذف اللاعب: ${row.fullName}؟`)) return;
+              const pin = window.prompt('أدخل PIN المدير للحذف:', '');
+              if (!pin?.trim()) return;
+
+              await deleteMember(row.id, pin.trim());
+              await loadDashboard();
+              enqueueSnackbar('تم حذف اللاعب', { variant: 'success' });
+            }}
+          >
+            <DeleteMemberIcon fontSize="small" />
+          </IconButton>
         </Stack>
       ),
     },
   ];
 
-  const handleRenew = async (months: number) => {
+  const handleRenew = async (months: number, startMode: NonNullable<RenewalPayload['startMode']>) => {
     if (!renewTarget) return;
     const ok = window.confirm(`هل تريد تجديد اشتراك (${renewTarget.fullName}) لمدة ${months} شهر؟`);
     if (!ok) return;
 
     setRenewing(true);
     try {
-      const updated = await renewMember({ memberId: renewTarget.id, months });
+      const updated = await renewMember({ memberId: renewTarget.id, months, startMode });
       await loadDashboard();
       enqueueSnackbar(`تم تجديد اشتراك اللاعب بنجاح حتى: ${updated.endDate}`, { variant: 'success' });
       setRenewTarget(null);

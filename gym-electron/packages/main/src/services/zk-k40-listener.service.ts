@@ -163,7 +163,7 @@ export class ZkK40ListenerService {
     const moduleRef = this.loadDriver();
     const client = this.createClient(moduleRef, ip, port);
     if (!client) {
-      throw new Error('لا يمكن إنشاء عميل zkteco-terminal. تحقق من الإصدار أو طريقة التهيئة.');
+      throw new Error('Cannot initialize zkteco-terminal client instance.');
     }
 
     if (typeof client.createSocket === 'function') {
@@ -176,7 +176,7 @@ export class ZkK40ListenerService {
       return client;
     }
 
-    throw new Error('تعذر الاتصال بجهاز K40: لا يوجد createSocket/connect في مكتبة zkteco-terminal.');
+    throw new Error('Unable to connect to K40: zkteco-terminal does not expose createSocket/connect.');
   }
 
   private async disconnect(): Promise<void> {
@@ -203,7 +203,7 @@ export class ZkK40ListenerService {
     } else if (typeof client.getLogs === 'function') {
       rows = await client.getLogs();
     } else {
-      throw new Error('المكتبة لا توفّر دالة getAttendances/getAttendance/getLogs.');
+      throw new Error('zkteco-terminal does not provide getAttendances/getAttendance/getLogs.');
     }
 
     return rows
@@ -281,7 +281,7 @@ export class ZkK40ListenerService {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       return require('zkteco-terminal');
     } catch {
-      throw new Error('مكتبة zkteco-terminal غير مثبتة. نفّذ npm install داخل مشروع Electron.');
+      throw new Error('zkteco-terminal package is not installed.');
     }
   }
 
@@ -308,4 +308,3 @@ export class ZkK40ListenerService {
 }
 
 export const zkK40ListenerService = new ZkK40ListenerService();
-
