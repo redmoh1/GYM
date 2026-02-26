@@ -82,6 +82,44 @@ class RenewalDialog(QDialog):
         return self.months_spin.value()
 
 
+class TopUpSessionsDialog(QDialog):
+    """Small dialog to select top-up sessions amount."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("إضافة حصص")
+        self.setLayoutDirection(Qt.RightToLeft)
+        self.setMinimumWidth(300)
+
+        self.sessions_spin = QSpinBox()
+        self.sessions_spin.setRange(1, 5000)
+        self.sessions_spin.setValue(10)
+
+        form = QFormLayout()
+        form.addRow("عدد الحصص:", self.sessions_spin)
+
+        ok_btn = QPushButton("تأكيد")
+        cancel_btn = QPushButton("إلغاء")
+        cancel_btn.setObjectName("btnGhost")
+        ok_btn.clicked.connect(self.accept)
+        cancel_btn.clicked.connect(self.reject)
+
+        actions = QHBoxLayout()
+        actions.addStretch()
+        actions.addWidget(cancel_btn)
+        actions.addWidget(ok_btn)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(14, 14, 14, 14)
+        root.setSpacing(10)
+        root.addLayout(form)
+        root.addLayout(actions)
+
+    @property
+    def sessions(self) -> int:
+        return self.sessions_spin.value()
+
+
 class MainWindow(QMainWindow):
     """Main shell with sidebar, dashboard and members pages."""
 
@@ -699,4 +737,3 @@ class MainWindow(QMainWindow):
         self.k40_service.stop()
         self.db.close()
         super().closeEvent(event)
-
