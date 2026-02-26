@@ -1,12 +1,17 @@
 export type SubscriptionStatus = 'Active' | 'ExpiringSoon' | 'Expired';
+export type SubscriptionType = 'MONTHLY' | 'SESSIONS';
 
 export interface MemberDTO {
   id: number;
   fullName: string;
   phone: string;
+  subscriptionType: SubscriptionType;
   startDate: string;
   durationMonths: number;
   endDate: string;
+  sessionsTotal: number | null;
+  sessionsRemaining: number | null;
+  sessionsExpiryDate: string | null;
   notes: string;
   cardId: string;
   photoPath: string;
@@ -36,8 +41,12 @@ export interface MembersQuery {
 export interface MemberPayload {
   fullName: string;
   phone: string;
+  subscriptionType: SubscriptionType;
   startDate: string;
   durationMonths: number;
+  sessionsTotal?: number | null;
+  sessionsRemaining?: number | null;
+  sessionsExpiryDate?: string | null;
   notes?: string;
   planId?: number | null;
   cardId?: string;
@@ -49,6 +58,11 @@ export interface RenewalPayload {
   startMode?: 'from_end_date' | 'from_today';
   amount?: number;
   note?: string;
+}
+
+export interface SessionsTopUpPayload {
+  memberId: number;
+  sessionsToAdd: number;
 }
 
 export interface AppSettings {
@@ -78,6 +92,11 @@ export interface CheckinDTO {
   memberName: string;
   memberPhone: string;
   memberEndDate: string | null;
+  memberSubscriptionType: SubscriptionType | null;
+  memberSessionsTotal: number | null;
+  memberSessionsRemaining: number | null;
+  memberSessionsExpiryDate: string | null;
+  consumedSessions: number;
   daysLeft: number | null;
   photoPath: string;
   cardId: string;
