@@ -16,21 +16,18 @@ export async function renewMemberSubscription(payload: RenewalPayload): Promise<
   if (!existing) throw new Error('Member not found');
 
   const now = new Date();
-  const { status } = statusFromDate(existing.endDate, settings.expiringSoonDays);
-  const isExpired = status === 'Expired';
-
-  const baseDate = isExpired ? now : existing.endDate;
+  const renewFromToday = payload.startMode === 'from_today';
+  const baseDate = renewFromToday ? now : existing.endDate;
   const newEndDate = addMonths(baseDate, payload.months);
-  const nextDurationMonths = isExpired ? payload.months : existing.durationMonths + payload.months;
+  const nextDurationMonths = renewFromToday ? payload.months : existing.durationMonths + payload.months;
 
   return prisma.member.update({
     where: { id: payload.memberId },
     data: {
-      startDate: isExpired ? now : existing.startDate,
+      startDate: renewFromToday ? now : existing.startDate,
       endDate: newEndDate,
       durationMonths: nextDurationMonths,
     },
     include: { plan: true },
   });
 }
-
